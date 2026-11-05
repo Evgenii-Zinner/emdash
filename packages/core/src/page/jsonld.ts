@@ -6,6 +6,7 @@
  */
 
 import type { PublicPageContext } from "../plugins/types.js";
+import type { SocialLink } from "../settings/types.js";
 
 /**
  * Remove null/undefined values from a JSON-LD object recursively.
@@ -60,6 +61,7 @@ function siteOrigin(page: PublicPageContext): string {
 export function buildBlogPostingJsonLd(
 	page: PublicPageContext,
 	defaultOgImage?: string | null,
+	socialLinks?: SocialLink[],
 ): Record<string, unknown> | null {
 	if (page.pageType !== "article" || !page.canonical) return null;
 
@@ -70,6 +72,9 @@ export function buildBlogPostingJsonLd(
 	const modifiedTime = page.articleMeta?.modifiedTime;
 	const author = page.articleMeta?.author;
 	const siteName = page.siteName;
+	const sameAs = socialLinks
+		? socialLinks.map((l) => l.url).filter((u): u is string => Boolean(u))
+		: undefined;
 
 	return cleanJsonLd({
 		"@context": "https://schema.org",
@@ -92,6 +97,7 @@ export function buildBlogPostingJsonLd(
 					"@type": "Organization",
 					"@id": `${siteOrigin(page)}/#organization`,
 					name: siteName,
+					sameAs: sameAs && sameAs.length > 0 ? sameAs : undefined,
 				}
 			: undefined,
 		mainEntityOfPage: {
@@ -105,11 +111,18 @@ export function buildBlogPostingJsonLd(
  * Build a WebSite JSON-LD graph from page context.
  * Used for non-article pages (homepage, listing pages, etc.)
  */
-export function buildWebSiteJsonLd(page: PublicPageContext): Record<string, unknown> | null {
+export function buildWebSiteJsonLd(
+	page: PublicPageContext,
+	socialLinks?: SocialLink[],
+): Record<string, unknown> | null {
 	const siteName = page.siteName;
 	if (!siteName) return null;
 
 	const siteUrl = siteOrigin(page);
+
+	const sameAs = socialLinks
+		? socialLinks.map((l) => l.url).filter((u): u is string => Boolean(u))
+		: undefined;
 
 	return cleanJsonLd({
 		"@context": "https://schema.org",
@@ -117,5 +130,6 @@ export function buildWebSiteJsonLd(page: PublicPageContext): Record<string, unkn
 		"@id": `${siteUrl}/#website`,
 		name: siteName,
 		url: siteUrl,
+		sameAs: sameAs && sameAs.length > 0 ? sameAs : undefined,
 	});
 }

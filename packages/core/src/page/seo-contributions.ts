@@ -18,7 +18,7 @@ import type { ContentSeo } from "../database/repositories/types.js";
 import type { PageMetadataContribution, PublicPageContext } from "../plugins/types.js";
 import { buildSeoImageUrl, resolveSeoCanonicalUrl } from "../seo/media-url.js";
 import { getSiteSettings } from "../settings/index.js";
-import type { SeoSettings } from "../settings/types.js";
+import type { SeoSettings, SocialLink } from "../settings/types.js";
 import { buildBlogPostingJsonLd, buildWebSiteJsonLd } from "./jsonld.js";
 import { peekSeoPanel } from "./seo-panel.js";
 
@@ -35,6 +35,7 @@ import { peekSeoPanel } from "./seo-panel.js";
 export function generateBaseSeoContributions(
 	page: PublicPageContext,
 	defaultOgImage?: string | null,
+	socialLinks?: SocialLink[],
 ): PageMetadataContribution[] {
 	const contributions: PageMetadataContribution[] = [];
 
@@ -140,12 +141,12 @@ export function generateBaseSeoContributions(
 	// -- JSON-LD --
 
 	if (page.pageType === "article") {
-		const blogPosting = buildBlogPostingJsonLd(page, defaultOgImage ?? null);
+		const blogPosting = buildBlogPostingJsonLd(page, defaultOgImage ?? null, socialLinks);
 		if (blogPosting) {
 			contributions.push({ kind: "jsonld", id: "primary", graph: blogPosting });
 		}
 	} else if (siteName) {
-		const webSite = buildWebSiteJsonLd(page);
+		const webSite = buildWebSiteJsonLd(page, socialLinks);
 		if (webSite) {
 			contributions.push({ kind: "jsonld", id: "primary", graph: webSite });
 		}
@@ -254,6 +255,35 @@ export function generateSiteSeoContributions(
 			name: "msvalidate.01",
 			content: seoSettings.bingVerification,
 		});
+	}
+
+	return contributions;
+}
+
+/**
+ * Generate site-level social metadata contributions from SiteSettings.socialLinks.
+ *
+ * Emits `<link rel="me" href="...">` for configured social links that have
+ * identity verification enabled (`relMe: true`), allowing platforms like Mastodon,
+ * GitHub, Bluesky, etc. to verify profile ownership.
+ */
+export function generateSiteSocialContributions(
+	socialLinks?: SocialLink[],
+): PageMetadataContribution[] {
+	const contributions: PageMetadataContribution[] = [];
+
+	if (!socialLinks || !Array.isArray(socialLinks)) {
+		return contributions;
+	}
+
+	for (const link of socialLinks) {
+		if (link.relMe && link.url) {
+			contributions.push({
+				kind: "link",
+				rel: "me",
+				href: link.url,
+			});
+		}
 	}
 
 	return contributions;

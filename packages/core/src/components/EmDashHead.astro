@@ -38,6 +38,7 @@ import JsonLdScript from "./JsonLdScript.astro";
 import {
 	generateBaseSeoContributions,
 	generateSiteSeoContributions,
+	generateSiteSocialContributions,
 	resolveSeoPanelPage,
 } from "../page/seo-contributions.js";
 import { renderSiteIdentity } from "../page/site-identity.js";
@@ -103,6 +104,7 @@ if (runtime) {
 	const baseContributions: PageMetadataContribution[] = generateBaseSeoContributions(
 		resolvedPage,
 		defaultOgImage,
+		siteSettings.socialLinks,
 	);
 
 	// hreflang alternates for translated content entries (#1690). Only
@@ -125,6 +127,7 @@ if (runtime) {
 	}
 
 	const siteContributions = generateSiteSeoContributions(siteSettings.seo);
+	const socialContributions = generateSiteSocialContributions(siteSettings.socialLinks);
 	const stagingContributions: PageMetadataContribution[] = siteSettings.staging
 		? [{ kind: "meta", name: "robots", content: "noindex, nofollow" }]
 		: [];
@@ -132,6 +135,7 @@ if (runtime) {
 		...stagingContributions,
 		...pluginContributions,
 		...siteContributions,
+		...socialContributions,
 		...baseContributions,
 		...hreflangContributions,
 	];

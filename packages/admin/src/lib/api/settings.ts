@@ -7,6 +7,14 @@ import { msg } from "@lingui/core/macro";
 
 import { API_BASE, apiFetch, parseApiResponse } from "./client.js";
 
+export interface SocialLink {
+	id: string;
+	platform?: string;
+	label: string;
+	url: string;
+	relMe?: boolean;
+}
+
 export interface SiteSettings {
 	// Identity
 	title: string;
@@ -23,6 +31,7 @@ export interface SiteSettings {
 	timezone: string;
 
 	// Social
+	socialLinks?: SocialLink[];
 	social?: {
 		twitter?: string;
 		github?: string;
@@ -30,6 +39,7 @@ export interface SiteSettings {
 		instagram?: string;
 		linkedin?: string;
 		youtube?: string;
+		[platform: string]: string | undefined;
 	};
 
 	// SEO
@@ -44,10 +54,11 @@ export interface SiteSettings {
 }
 export interface SiteSettingsUpdate extends Omit<
 	Partial<SiteSettings>,
-	"logo" | "favicon" | "seo"
+	"logo" | "favicon" | "seo" | "socialLinks"
 > {
 	logo?: SiteSettings["logo"] | null;
 	favicon?: SiteSettings["favicon"] | null;
+	socialLinks?: SocialLink[] | null;
 	seo?: Omit<NonNullable<SiteSettings["seo"]>, "defaultOgImage"> & {
 		defaultOgImage?: NonNullable<SiteSettings["seo"]>["defaultOgImage"] | null;
 	};

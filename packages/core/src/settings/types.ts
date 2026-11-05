@@ -52,6 +52,15 @@ export interface SeoSettings {
 	bingVerification?: string;
 }
 
+/** Individual social link entry with optional identity verification (`rel="me"`) */
+export interface SocialLink {
+	id: string;
+	platform?: string;
+	label: string;
+	url: string;
+	relMe?: boolean;
+}
+
 /** Site settings schema */
 export interface SiteSettings {
 	// Identity
@@ -76,6 +85,16 @@ export interface SiteSettings {
 	timezone: string;
 
 	// Social
+	/**
+	 * Canonical structured social links list with custom platforms, labels,
+	 * and `rel="me"` verification toggles.
+	 */
+	socialLinks?: SocialLink[];
+
+	/**
+	 * Deprecated backwards-compatible map for themes accessing `social.twitter`, etc.
+	 * Automatically synthesized from `socialLinks` on read.
+	 */
 	social?: {
 		twitter?: string;
 		github?: string;
@@ -83,6 +102,7 @@ export interface SiteSettings {
 		instagram?: string;
 		linkedin?: string;
 		youtube?: string;
+		[platform: string]: string | undefined;
 	};
 
 	// SEO
@@ -97,11 +117,12 @@ export interface SeoSettingsUpdate extends Omit<SeoSettings, "defaultOgImage"> {
 /** Site-settings write shape. `null` removes media references; omitted fields are unchanged. */
 export interface SiteSettingsUpdate extends Omit<
 	Partial<SiteSettings>,
-	"logo" | "favicon" | "seo"
+	"logo" | "favicon" | "seo" | "socialLinks"
 > {
 	logo?: MediaReference | null;
 	favicon?: MediaReference | null;
 	seo?: SeoSettingsUpdate;
+	socialLinks?: SocialLink[] | null;
 }
 
 /** Keys that are valid site settings */

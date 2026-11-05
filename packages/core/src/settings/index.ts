@@ -44,6 +44,7 @@ import type {
 	SiteSettings,
 	SiteSettingsUpdate,
 	SiteSettingKey,
+	SocialLink,
 } from "./types.js";
 import { normalizeSiteSettingsVersion } from "./version.js";
 
@@ -52,6 +53,46 @@ const SETTINGS_PREFIX = "site:";
 
 /** Settings stored as one object whose fields are updated individually. */
 const NESTED_SETTING_KEYS = new Set(["seo", "social"]);
+
+/**
+ * Convert a legacy key-value social map to canonical SocialLink array.
+ */
+function legacySocialToSocialLinks(
+	social: Record<string, unknown> | undefined,
+): SocialLink[] {
+	if (!social || typeof social !== "object") return [];
+	const links: SocialLink[] = [];
+	for (const [platform, url] of Object.entries(social)) {
+		if (typeof url === "string" && url.trim().length > 0) {
+			links.push({
+				id: platform,
+				platform,
+				label: platform.charAt(0).toUpperCase() + platform.slice(1),
+				url: url.trim(),
+				relMe: true,
+			});
+		}
+	}
+	return links;
+}
+
+/**
+ * Convert canonical SocialLink array to legacy key-value social map.
+ */
+function socialLinksToLegacySocial(
+	links: SocialLink[] | undefined,
+	existingMap?: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+	const result: Record<string, string | undefined> = { ...existingMap };
+	if (!links || !Array.isArray(links)) return result;
+	for (const link of links) {
+		const platform = link.platform || link.label.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+		if (platform && link.url && !result[platform]) {
+			result[platform] = link.url;
+		}
+	}
+	return result;
+}
 
 function isPluginSettingEnvelopeRecord(value: unknown): value is Record<string, unknown> {
 	return (
@@ -286,6 +327,19 @@ export async function getSiteSettingWithDb<K extends SiteSettingKey>(
 	const value = await options.get<SiteSettings[K]>(`${SETTINGS_PREFIX}${key}`);
 
 	if (!value) {
+		if (key === "socialLinks") {
+			const legacySocial = await options.get<Record<string, string | undefined>>(`${SETTINGS_PREFIX}social`);
+			if (legacySocial) {
+				// eslint-disable-next-line typescript/no-unsafe-type-assertion -- synthesized fallback matches SocialLink[]
+				return legacySocialToSocialLinks(legacySocial) as unknown as SiteSettings[K];
+			}
+		} else if (key === "social") {
+			const links = await options.get<SocialLink[]>(`${SETTINGS_PREFIX}socialLinks`);
+			if (links && Array.isArray(links)) {
+				// eslint-disable-next-line typescript/no-unsafe-type-assertion -- synthesized fallback matches social map
+				return socialLinksToLegacySocial(links) as unknown as SiteSettings[K];
+			}
+		}
 		return undefined;
 	}
 
@@ -469,6 +523,24 @@ async function loadSiteSettingsSnapshot(
 		};
 	}
 
+	// Bidirectional normalization for social and socialLinks
+	if (typedSettings.socialLinks && Array.isArray(typedSettings.socialLinks)) {
+		typedSettings.socialLinks = typedSettings.socialLinks.map((link, idx) => ({
+			...link,
+			id:
+				link.id ||
+				link.platform ||
+				link.label.toLowerCase().replace(/[^a-z0-9_-]/g, "") ||
+				String(idx),
+		}));
+		typedSettings.social = socialLinksToLegacySocial(
+			typedSettings.socialLinks,
+			typedSettings.social,
+		);
+	} else if (typedSettings.social && typeof typedSettings.social === "object") {
+		typedSettings.socialLinks = legacySocialToSocialLinks(typedSettings.social);
+	}
+
 	return { data: typedSettings, version };
 }
 
@@ -505,9 +577,33 @@ export async function setSiteSettings(
 
 	for (const [key, value] of Object.entries(settings)) {
 		if (value === undefined) continue;
-		if (value === null) deletions.push(`${SETTINGS_PREFIX}${key}`);
-		else if (NESTED_SETTING_KEYS.has(key) && isRecord(value)) nestedPatches.push([key, value]);
-		else updates[`${SETTINGS_PREFIX}${key}`] = value;
+		if (value === null) {
+			deletions.push(`${SETTINGS_PREFIX}${key}`);
+			if (key === "socialLinks") {
+				deletions.push(`${SETTINGS_PREFIX}social`);
+			}
+		} else if (key === "socialLinks" && Array.isArray(value)) {
+			const normalizedLinks: SocialLink[] = value.map((link, idx) => ({
+				id:
+					link.id ||
+					link.platform ||
+					link.label.toLowerCase().replace(/[^a-z0-9_-]/g, "") ||
+					(typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(idx)),
+				platform: link.platform,
+				label: link.label,
+				url: link.url,
+				relMe: link.relMe ?? false,
+			}));
+			updates[`${SETTINGS_PREFIX}socialLinks`] = normalizedLinks;
+
+			if (settings.social === undefined) {
+				updates[`${SETTINGS_PREFIX}social`] = socialLinksToLegacySocial(normalizedLinks);
+			}
+		} else if (NESTED_SETTING_KEYS.has(key) && isRecord(value)) {
+			nestedPatches.push([key, value]);
+		} else {
+			updates[`${SETTINGS_PREFIX}${key}`] = value;
+		}
 	}
 
 	if (Object.keys(updates).length === 0 && deletions.length === 0 && nestedPatches.length === 0) {
@@ -527,8 +623,20 @@ export async function setSiteSettings(
 					if (fieldValue === null) delete next[field];
 					else if (fieldValue !== undefined) next[field] = fieldValue;
 				}
-				if (Object.keys(next).length === 0) await transactionOptions.delete(optionName);
-				else await transactionOptions.set(optionName, next);
+				if (Object.keys(next).length === 0) {
+					await transactionOptions.delete(optionName);
+					if (key === "social" && settings.socialLinks === undefined) {
+						await transactionOptions.delete(`${SETTINGS_PREFIX}socialLinks`);
+					}
+				} else {
+					await transactionOptions.set(optionName, next);
+					if (key === "social" && settings.socialLinks === undefined) {
+						await transactionOptions.set(
+							`${SETTINGS_PREFIX}socialLinks`,
+							legacySocialToSocialLinks(next),
+						);
+					}
+				}
 			}
 
 			// A running export detects writes to tables without updated_at via

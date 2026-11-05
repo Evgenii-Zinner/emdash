@@ -16,13 +16,31 @@ const mediaReferenceInput = z.object({
 	alt: z.string().optional(),
 });
 
-const socialSettings = z.object({
-	twitter: z.string().optional(),
-	github: z.string().optional(),
-	facebook: z.string().optional(),
-	instagram: z.string().optional(),
-	linkedin: z.string().optional(),
-	youtube: z.string().optional(),
+const socialSettings = z
+	.object({
+		twitter: z.string().optional(),
+		github: z.string().optional(),
+		facebook: z.string().optional(),
+		instagram: z.string().optional(),
+		linkedin: z.string().optional(),
+		youtube: z.string().optional(),
+	})
+	.catchall(z.string().optional());
+
+export const socialLinkInput = z.object({
+	id: z.string().optional(),
+	platform: z.string().optional(),
+	label: z.string().min(1),
+	url: httpUrl,
+	relMe: z.boolean().optional(),
+});
+
+export const socialLinkResponse = z.object({
+	id: z.string(),
+	platform: z.string().optional(),
+	label: z.string(),
+	url: z.string(),
+	relMe: z.boolean().optional(),
 });
 
 const seoSettingsInput = z.object({
@@ -46,6 +64,7 @@ export const settingsUpdateBody = z
 		dateFormat: z.string().optional(),
 		timezone: z.string().optional(),
 		social: socialSettings.optional(),
+		socialLinks: z.array(socialLinkInput).nullable().optional(),
 		seo: seoSettingsInput.optional(),
 	})
 	.meta({ id: "SettingsUpdateBody" });
@@ -94,6 +113,7 @@ export const siteSettingsSchema = z
 		dateFormat: z.string().optional(),
 		timezone: z.string().optional(),
 		social: socialSettings.optional(),
+		socialLinks: z.array(socialLinkResponse).optional(),
 		seo: seoSettingsResponse.optional(),
 	})
 	.meta({ id: "SiteSettings" });

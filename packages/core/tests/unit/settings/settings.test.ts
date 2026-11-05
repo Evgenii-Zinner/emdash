@@ -77,6 +77,104 @@ describe("Site Settings", () => {
 			expect(settings.social?.github).toBe("user");
 		});
 
+		it("should store socialLinks and synchronize backward-compatible social map", async () => {
+			await setSiteSettings(
+				{
+					socialLinks: [
+						{
+							id: "mastodon",
+							platform: "mastodon",
+							label: "Mastodon",
+							url: "https://mastodon.social/@alice",
+							relMe: true,
+						},
+						{
+							id: "github",
+							platform: "github",
+							label: "GitHub",
+							url: "https://github.com/alice",
+							relMe: true,
+						},
+					],
+				},
+				db,
+			);
+
+			const settings = await getSiteSettingsWithDb(db);
+			expect(settings.socialLinks).toHaveLength(2);
+			expect(settings.socialLinks?.[0]?.platform).toBe("mastodon");
+			expect(settings.socialLinks?.[0]?.relMe).toBe(true);
+			// Backward-compatible social map synthesized
+			expect(settings.social?.mastodon).toBe("https://mastodon.social/@alice");
+			expect(settings.social?.github).toBe("https://github.com/alice");
+
+			// Stored in options table as both
+			const linksRow = await db
+				.selectFrom("options")
+				.where("name", "=", "site:socialLinks")
+				.select("value")
+				.executeTakeFirst();
+			expect(JSON.parse(linksRow?.value || "[]")).toHaveLength(2);
+
+			const socialRow = await db
+				.selectFrom("options")
+				.where("name", "=", "site:social")
+				.select("value")
+				.executeTakeFirst();
+			expect(JSON.parse(socialRow?.value || "{}")).toEqual({
+				mastodon: "https://mastodon.social/@alice",
+				github: "https://github.com/alice",
+			});
+		});
+
+		it("should synthesize socialLinks when only legacy social map is updated", async () => {
+			await setSiteSettings(
+				{
+					social: {
+						twitter: "https://x.com/alice",
+						bluesky: "https://bsky.app/profile/alice.bsky.social",
+					},
+				},
+				db,
+			);
+
+			const settings = await getSiteSettingsWithDb(db);
+			expect(settings.social?.twitter).toBe("https://x.com/alice");
+			expect(settings.social?.bluesky).toBe("https://bsky.app/profile/alice.bsky.social");
+			expect(settings.socialLinks).toEqual([
+				{
+					id: "twitter",
+					platform: "twitter",
+					label: "Twitter",
+					url: "https://x.com/alice",
+					relMe: true,
+				},
+				{
+					id: "bluesky",
+					platform: "bluesky",
+					label: "Bluesky",
+					url: "https://bsky.app/profile/alice.bsky.social",
+					relMe: true,
+				},
+			]);
+		});
+
+		it("should fall back to legacy social in getSiteSettingWithDb when socialLinks is queried", async () => {
+			const options = new OptionsRepository(db);
+			await options.set("site:social", { mastodon: "https://mastodon.social/@bob" });
+
+			const socialLinks = await getSiteSettingWithDb("socialLinks", db);
+			expect(socialLinks).toEqual([
+				{
+					id: "mastodon",
+					platform: "mastodon",
+					label: "Mastodon",
+					url: "https://mastodon.social/@bob",
+					relMe: true,
+				},
+			]);
+		});
+
 		it("should store logo with mediaId", async () => {
 			await setSiteSettings(
 				{

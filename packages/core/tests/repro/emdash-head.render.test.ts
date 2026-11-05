@@ -70,4 +70,39 @@ describe("EmDashHead", () => {
 		expect(html).toContain('<meta name="robots" content="index, follow">');
 		expect(html).not.toContain("noindex");
 	});
+
+	it("renders rel=\"me\" links for verified social profiles and populates sameAs in JSON-LD", async () => {
+		const html = await render(
+			{
+				socialLinks: [
+					{
+						id: "mastodon",
+						platform: "mastodon",
+						label: "Mastodon",
+						url: "https://mastodon.social/@alice",
+						relMe: true,
+					},
+					{
+						id: "github",
+						platform: "github",
+						label: "GitHub",
+						url: "https://github.com/alice",
+						relMe: true,
+					},
+					{
+						id: "internal",
+						label: "Internal",
+						url: "https://example.com/alice",
+						relMe: false,
+					},
+				],
+			},
+			runtimeWithPluginMetadata([]),
+		);
+
+		expect(html).toContain('<link rel="me" href="https://mastodon.social/@alice">');
+		expect(html).toContain('<link rel="me" href="https://github.com/alice">');
+		expect(html).not.toContain('<link rel="me" href="https://example.com/alice">');
+		expect(html).toContain('"sameAs":["https://mastodon.social/@alice","https://github.com/alice","https://example.com/alice"]');
+	});
 });

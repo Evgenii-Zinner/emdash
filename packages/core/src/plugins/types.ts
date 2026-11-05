@@ -1704,6 +1704,7 @@ export type PageMetadataLinkRel =
 	| "alternate"
 	| "author"
 	| "license"
+	| "me"
 	| "nlweb"
 	| "site.standard.document";
 
