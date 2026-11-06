@@ -141,7 +141,7 @@ export function generateBaseSeoContributions(
 	// -- JSON-LD --
 
 	if (page.pageType === "article") {
-		const blogPosting = buildBlogPostingJsonLd(page, defaultOgImage ?? null, socialLinks);
+		const blogPosting = buildBlogPostingJsonLd(page, defaultOgImage ?? null);
 		if (blogPosting) {
 			contributions.push({ kind: "jsonld", id: "primary", graph: blogPosting });
 		}
@@ -277,11 +277,15 @@ export function generateSiteSocialContributions(
 	}
 
 	for (const link of socialLinks) {
-		if (link.relMe && link.url) {
+		if (
+			link.relMe === true &&
+			typeof link.url === "string" &&
+			/^https?:\/\//i.test(link.url.trim())
+		) {
 			contributions.push({
 				kind: "link",
 				rel: "me",
-				href: link.url,
+				href: link.url.trim(),
 			});
 		}
 	}

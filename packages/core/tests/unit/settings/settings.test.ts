@@ -104,11 +104,10 @@ describe("Site Settings", () => {
 			expect(settings.socialLinks).toHaveLength(2);
 			expect(settings.socialLinks?.[0]?.platform).toBe("mastodon");
 			expect(settings.socialLinks?.[0]?.relMe).toBe(true);
-			// Backward-compatible social map synthesized
-			expect(settings.social?.mastodon).toBe("https://mastodon.social/@alice");
-			expect(settings.social?.github).toBe("https://github.com/alice");
+			// Backward-compatible social map synthesized (Option A extracts username for known platforms)
+			expect(settings.social?.github).toBe("alice");
 
-			// Stored in options table as both
+			// Stored in options table
 			const linksRow = await db
 				.selectFrom("options")
 				.where("name", "=", "site:socialLinks")
@@ -122,55 +121,156 @@ describe("Site Settings", () => {
 				.select("value")
 				.executeTakeFirst();
 			expect(JSON.parse(socialRow?.value || "{}")).toEqual({
-				mastodon: "https://mastodon.social/@alice",
-				github: "https://github.com/alice",
+				github: "alice",
 			});
 		});
 
-		it("should synthesize socialLinks when only legacy social map is updated", async () => {
+		it("should propagate admin updates and deletions to settings.social", async () => {
+			// Initially have twitter and github
+			await setSiteSettings(
+				{
+					socialLinks: [
+						{
+							id: "link-tw",
+							platform: "twitter",
+							label: "Twitter",
+							url: "https://x.com/alice",
+							relMe: true,
+						},
+						{
+							id: "link-gh",
+							platform: "github",
+							label: "GitHub",
+							url: "https://github.com/alice",
+							relMe: true,
+						},
+					],
+				},
+				db,
+			);
+
+			let settings = await getSiteSettingsWithDb(db);
+			expect(settings.social?.twitter).toBe("@alice");
+			expect(settings.social?.github).toBe("alice");
+
+			// Delete twitter and update github to bob
+			await setSiteSettings(
+				{
+					socialLinks: [
+						{
+							id: "link-gh",
+							platform: "github",
+							label: "GitHub",
+							url: "https://github.com/bob",
+							relMe: true,
+						},
+					],
+				},
+				db,
+			);
+
+			settings = await getSiteSettingsWithDb(db);
+			expect(settings.social?.github).toBe("bob");
+			expect(settings.social?.twitter).toBeUndefined();
+		});
+
+		it("should non-destructively merge legacy social patches without wiping custom links", async () => {
+			// Save custom link with relMe: false, plus an account
+			await setSiteSettings(
+				{
+					socialLinks: [
+						{
+							id: "my-blog",
+							label: "Мой блог",
+							url: "https://blog.example.com",
+							relMe: false,
+						},
+						{
+							id: "gh-work",
+							platform: "github",
+							label: "GitHub Work",
+							url: "https://github.com/alice-work",
+							relMe: true,
+						},
+					],
+				},
+				db,
+			);
+
+			// Patch legacy social map (e.g. from older MCP tool or script)
 			await setSiteSettings(
 				{
 					social: {
-						twitter: "https://x.com/alice",
-						bluesky: "https://bsky.app/profile/alice.bsky.social",
+						twitter: "@alice",
 					},
 				},
 				db,
 			);
 
 			const settings = await getSiteSettingsWithDb(db);
-			expect(settings.social?.twitter).toBe("https://x.com/alice");
-			expect(settings.social?.bluesky).toBe("https://bsky.app/profile/alice.bsky.social");
+			expect(settings.socialLinks).toHaveLength(3);
+
+			// "Мой блог" was NOT lost
+			const blog = settings.socialLinks?.find((l) => l.label === "Мой блог");
+			expect(blog).toBeDefined();
+			expect(blog?.url).toBe("https://blog.example.com");
+			expect(blog?.relMe).toBe(false);
+
+			// "GitHub Work" was NOT lost
+			const gh = settings.socialLinks?.find((l) => l.platform === "github");
+			expect(gh?.url).toBe("https://github.com/alice-work");
+			expect(gh?.relMe).toBe(true);
+
+			// Twitter was added with relMe: false and handle converted to URL
+			const tw = settings.socialLinks?.find((l) => l.platform === "twitter");
+			expect(tw?.url).toBe("https://x.com/alice");
+			expect(tw?.relMe).toBe(false);
+		});
+
+		it("should synthesize socialLinks when only legacy social map is updated", async () => {
+			await setSiteSettings(
+				{
+					social: {
+						twitter: "@alice",
+						github: "alice",
+					},
+				},
+				db,
+			);
+
+			const settings = await getSiteSettingsWithDb(db);
+			expect(settings.social?.twitter).toBe("@alice");
+			expect(settings.social?.github).toBe("alice");
 			expect(settings.socialLinks).toEqual([
 				{
-					id: "twitter",
+					id: "legacy-twitter",
 					platform: "twitter",
-					label: "Twitter",
+					label: "X (Twitter)",
 					url: "https://x.com/alice",
-					relMe: true,
+					relMe: false,
 				},
 				{
-					id: "bluesky",
-					platform: "bluesky",
-					label: "Bluesky",
-					url: "https://bsky.app/profile/alice.bsky.social",
-					relMe: true,
+					id: "legacy-github",
+					platform: "github",
+					label: "GitHub",
+					url: "https://github.com/alice",
+					relMe: false,
 				},
 			]);
 		});
 
 		it("should fall back to legacy social in getSiteSettingWithDb when socialLinks is queried", async () => {
 			const options = new OptionsRepository(db);
-			await options.set("site:social", { mastodon: "https://mastodon.social/@bob" });
+			await options.set("site:social", { github: "bob" });
 
 			const socialLinks = await getSiteSettingWithDb("socialLinks", db);
 			expect(socialLinks).toEqual([
 				{
-					id: "mastodon",
-					platform: "mastodon",
-					label: "Mastodon",
-					url: "https://mastodon.social/@bob",
-					relMe: true,
+					id: "legacy-github",
+					platform: "github",
+					label: "GitHub",
+					url: "https://github.com/bob",
+					relMe: false,
 				},
 			]);
 		});

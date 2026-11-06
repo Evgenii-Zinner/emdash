@@ -28,10 +28,10 @@ const socialSettings = z
 	.catchall(z.string().optional());
 
 export const socialLinkInput = z.object({
-	id: z.string().optional(),
-	platform: z.string().optional(),
-	label: z.string().min(1),
-	url: httpUrl,
+	id: z.string().max(64).optional(),
+	platform: z.string().max(32).regex(/^[a-z0-9_-]+$/).optional(),
+	label: z.string().min(1).max(100),
+	url: httpUrl.max(2048),
 	relMe: z.boolean().optional(),
 });
 
@@ -64,7 +64,7 @@ export const settingsUpdateBody = z
 		dateFormat: z.string().optional(),
 		timezone: z.string().optional(),
 		social: socialSettings.optional(),
-		socialLinks: z.array(socialLinkInput).nullable().optional(),
+		socialLinks: z.array(socialLinkInput).max(50).nullable().optional(),
 		seo: seoSettingsInput.optional(),
 	})
 	.meta({ id: "SettingsUpdateBody" });

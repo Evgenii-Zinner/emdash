@@ -41,29 +41,19 @@ export function SocialSettings() {
 		staleTime: Infinity,
 	});
 
-	const [formData, setFormData] = React.useState<Partial<SiteSettings>>({});
-	const [savedFormData, setSavedFormData] = React.useState<Partial<SiteSettings>>({});
+	const [formData, setFormData] = React.useState<{ socialLinks?: SocialLink[] }>({});
+	const [savedFormData, setSavedFormData] = React.useState<{ socialLinks?: SocialLink[] }>({});
+	const [errors, setErrors] = React.useState<
+		Record<number, { label?: string; url?: string }>
+	>({});
 
 	React.useEffect(() => {
 		if (settings) {
-			const links: SocialLink[] =
-				settings.socialLinks ??
-				Object.entries(settings.social ?? {}).flatMap(([platform, url]) =>
-					url && typeof url === "string" && url.trim().length > 0
-						? [
-								{
-									id: platform,
-									platform,
-									label: platform.charAt(0).toUpperCase() + platform.slice(1),
-									url: url.trim(),
-									relMe: true,
-								},
-							]
-						: [],
-				);
-			const normalized: Partial<SiteSettings> = { ...settings, socialLinks: links };
+			const links = settings.socialLinks ?? [];
+			const normalized = { socialLinks: links };
 			setFormData(normalized);
 			setSavedFormData(normalized);
+			setErrors({});
 		}
 	}, [settings]);
 
@@ -73,7 +63,8 @@ export function SocialSettings() {
 	);
 
 	const saveMutation = useMutation({
-		mutationFn: (data: Partial<SiteSettings>) => updateSettings(data),
+		mutationFn: (data: { socialLinks?: SocialLink[] }) =>
+			updateSettings({ socialLinks: data.socialLinks }),
 		onSuccess: (_savedSettings, submittedSettings) => {
 			setSavedFormData(submittedSettings);
 			void queryClient.invalidateQueries({ queryKey: ["settings"] });
@@ -91,7 +82,49 @@ export function SocialSettings() {
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
-		saveMutation.mutate(formData);
+		const currentLinks = formData.socialLinks ?? [];
+		const newErrors: Record<number, { label?: string; url?: string }> = {};
+		const cleanedLinks: SocialLink[] = [];
+
+		for (let i = 0; i < currentLinks.length; i++) {
+			const link = currentLinks[i]!;
+			const hasLabel = Boolean(link.label?.trim());
+			const hasUrl = Boolean(link.url?.trim());
+
+			// Silently drop fully blank rows added without content
+			if (!hasLabel && !hasUrl) {
+				continue;
+			}
+
+			let rowError: { label?: string; url?: string } | null = null;
+			if (!hasLabel) {
+				rowError = { ...rowError, label: t`Label is required` };
+			}
+			if (!hasUrl) {
+				rowError = { ...rowError, url: t`URL is required` };
+			} else if (!/^https?:\/\//i.test(link.url.trim())) {
+				rowError = { ...rowError, url: t`URL must start with http:// or https://` };
+			}
+
+			if (rowError) {
+				newErrors[i] = rowError;
+			} else {
+				cleanedLinks.push({
+					...link,
+					label: link.label.trim(),
+					url: link.url.trim(),
+				});
+			}
+		}
+
+		if (Object.keys(newErrors).length > 0) {
+			setErrors(newErrors);
+			return;
+		}
+
+		setErrors({});
+		setFormData({ socialLinks: cleanedLinks });
+		saveMutation.mutate({ socialLinks: cleanedLinks });
 	};
 
 	const handleAddLink = () => {
@@ -99,7 +132,7 @@ export function SocialSettings() {
 			id:
 				typeof crypto !== "undefined" && crypto.randomUUID
 					? crypto.randomUUID()
-					: `link_${Date.now()}`,
+					: `link_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
 			label: "",
 			url: "",
 			relMe: true,
@@ -115,6 +148,18 @@ export function SocialSettings() {
 		field: keyof SocialLink,
 		value: string | boolean,
 	) => {
+		setErrors((prev) => {
+			if (!prev[index]?.[field as "label" | "url"]) return prev;
+			const next = { ...prev };
+			const row = { ...next[index] };
+			delete row[field as "label" | "url"];
+			if (Object.keys(row).length === 0) {
+				delete next[index];
+			} else {
+				next[index] = row;
+			}
+			return next;
+		});
 		setFormData((prev) => {
 			const links = [...(prev.socialLinks ?? [])];
 			const target = links[index];
@@ -125,6 +170,12 @@ export function SocialSettings() {
 	};
 
 	const handleRemoveLink = (index: number) => {
+		setErrors((prev) => {
+			if (!prev[index]) return prev;
+			const next = { ...prev };
+			delete next[index];
+			return next;
+		});
 		setFormData((prev) => {
 			const links = [...(prev.socialLinks ?? [])];
 			links.splice(index, 1);
@@ -177,7 +228,12 @@ export function SocialSettings() {
 				/>
 			}
 		>
-			<form id="social-settings-form" onSubmit={handleSubmit} className="grid gap-8">
+			<form
+				id="social-settings-form"
+				noValidate
+				onSubmit={handleSubmit}
+				className="grid gap-8"
+			>
 				<SettingsSection
 					title={t`Profiles & Links`}
 					description={t`Add your social media profiles and links. Enable identity verification (rel="me") to verify ownership on platforms like Mastodon, Bluesky, and GitHub.`}
@@ -208,6 +264,7 @@ export function SocialSettings() {
 											label={t`Platform / Label`}
 											placeholder={t`e.g. GitHub, Mastodon`}
 											value={link.label}
+											error={errors[index]?.label}
 											onChange={(e) =>
 												handleUpdateLink(index, "label", e.target.value)
 											}
@@ -220,6 +277,7 @@ export function SocialSettings() {
 											label={t`URL`}
 											placeholder="https://..."
 											value={link.url}
+											error={errors[index]?.url}
 											onChange={(e) =>
 												handleUpdateLink(index, "url", e.target.value)
 											}
@@ -233,7 +291,11 @@ export function SocialSettings() {
 											icon={<Trash className="h-4 w-4" />}
 											className="text-kumo-danger"
 											onClick={() => handleRemoveLink(index)}
-											aria-label={t`Remove ${link.label || "link"}`}
+											aria-label={
+												link.label?.trim()
+													? t`Remove ${link.label.trim()}`
+													: t`Remove link`
+											}
 										/>
 									</div>
 								</div>
@@ -244,7 +306,11 @@ export function SocialSettings() {
 										onCheckedChange={(checked) =>
 											handleUpdateLink(index, "relMe", checked)
 										}
-										aria-label={t`Verify identity (rel="me") for ${link.label || link.url || "link"}`}
+										aria-label={
+											link.label?.trim() || link.url?.trim()
+												? t`Verify identity (rel="me") for ${link.label?.trim() || link.url?.trim()}`
+												: t`Verify identity with rel="me"`
+										}
 									/>
 									<label
 										htmlFor={`rel-me-${link.id}`}

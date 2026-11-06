@@ -54,44 +54,258 @@ const SETTINGS_PREFIX = "site:";
 /** Settings stored as one object whose fields are updated individually. */
 const NESTED_SETTING_KEYS = new Set(["seo", "social"]);
 
+const HTTP_URL_RE = /^https?:\/\//i;
+const LEADING_AT_RE = /^@/;
+const YOUTUBE_CHANNEL_ID_RE = /^UC[\w-]{22}$/;
+
+const KNOWN_LEGACY_PLATFORMS = new Set([
+	"twitter",
+	"github",
+	"facebook",
+	"instagram",
+	"linkedin",
+	"youtube",
+]);
+
+const LEGACY_PLATFORM_LABELS: Record<string, string> = {
+	twitter: "X (Twitter)",
+	github: "GitHub",
+	facebook: "Facebook",
+	instagram: "Instagram",
+	linkedin: "LinkedIn",
+	youtube: "YouTube",
+};
+
+/**
+ * Convert a legacy handle or URL value into a valid absolute http(s) URL.
+ * Returns null if the value cannot form a valid URL.
+ */
+function legacySocialValueToUrl(platform: string, value: string): string | null {
+	const raw = value.trim();
+	if (!raw) return null;
+	if (HTTP_URL_RE.test(raw)) return raw;
+
+	const handle = raw.replace(LEADING_AT_RE, "");
+	if (!handle) return null;
+	const path = encodeURIComponent(handle);
+
+	switch (platform.toLowerCase()) {
+		case "twitter":
+			return `https://x.com/${path}`;
+		case "github":
+			return `https://github.com/${path}`;
+		case "facebook":
+			return `https://www.facebook.com/${path}`;
+		case "instagram":
+			return `https://www.instagram.com/${path}`;
+		case "linkedin":
+			return `https://www.linkedin.com/in/${path}`;
+		case "youtube":
+			return !raw.startsWith("@") && YOUTUBE_CHANNEL_ID_RE.test(handle)
+				? `https://www.youtube.com/channel/${path}`
+				: `https://www.youtube.com/@${path}`;
+		default:
+			return null;
+	}
+}
+
+/**
+ * Extract a legacy username/handle from a URL for a known platform.
+ * If the URL does not match the platform's standard profile pattern, returns the URL as-is.
+ */
+function urlToLegacySocialHandle(platform: string, url: string): string {
+	const raw = url.trim();
+	if (!raw) return "";
+
+	try {
+		switch (platform.toLowerCase()) {
+			case "github": {
+				const match = /^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)/i.exec(raw);
+				return match && match[1] ? decodeURIComponent(match[1]) : raw;
+			}
+			case "twitter": {
+				const match = /^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([^/?#]+)/i.exec(raw);
+				return match && match[1]
+					? `@${decodeURIComponent(match[1]).replace(/^@/, "")}`
+					: raw;
+			}
+			case "facebook": {
+				const match = /^https?:\/\/(?:www\.)?facebook\.com\/([^/?#]+)/i.exec(raw);
+				return match && match[1] ? decodeURIComponent(match[1]) : raw;
+			}
+			case "instagram": {
+				const match = /^https?:\/\/(?:www\.)?instagram\.com\/([^/?#]+)/i.exec(raw);
+				return match && match[1] ? decodeURIComponent(match[1]) : raw;
+			}
+			case "linkedin": {
+				const match = /^https?:\/\/(?:www\.)?linkedin\.com\/in\/([^/?#]+)/i.exec(raw);
+				return match && match[1] ? decodeURIComponent(match[1]) : raw;
+			}
+			case "youtube": {
+				const channelMatch = /^https?:\/\/(?:www\.)?youtube\.com\/channel\/([^/?#]+)/i.exec(raw);
+				if (channelMatch && channelMatch[1]) return decodeURIComponent(channelMatch[1]);
+				const userMatch = /^https?:\/\/(?:www\.)?youtube\.com\/@([^/?#]+)/i.exec(raw);
+				if (userMatch && userMatch[1]) return decodeURIComponent(userMatch[1]);
+				return raw;
+			}
+			default:
+				return raw;
+		}
+	} catch {
+		return raw;
+	}
+}
+
 /**
  * Convert a legacy key-value social map to canonical SocialLink array.
+ * Migrated entries default to relMe: false to prevent unverified identity claims on upgrade.
  */
 function legacySocialToSocialLinks(
-	social: Record<string, unknown> | undefined,
+	social: Record<string, unknown> | null | undefined,
 ): SocialLink[] {
 	if (!social || typeof social !== "object") return [];
 	const links: SocialLink[] = [];
-	for (const [platform, url] of Object.entries(social)) {
-		if (typeof url === "string" && url.trim().length > 0) {
-			links.push({
-				id: platform,
-				platform,
-				label: platform.charAt(0).toUpperCase() + platform.slice(1),
-				url: url.trim(),
-				relMe: true,
-			});
-		}
+	for (const [platform, raw] of Object.entries(social)) {
+		if (typeof raw !== "string" || !raw.trim()) continue;
+		const url = legacySocialValueToUrl(platform, raw);
+		if (!url) continue;
+		const platformKey = platform.toLowerCase();
+		links.push({
+			id: `legacy-${platformKey}`,
+			platform: platformKey,
+			label:
+				LEGACY_PLATFORM_LABELS[platformKey] ??
+				platform.charAt(0).toUpperCase() + platform.slice(1),
+			url,
+			relMe: false,
+		});
 	}
 	return links;
 }
 
 /**
- * Convert canonical SocialLink array to legacy key-value social map.
+ * Convert canonical SocialLink array to legacy key-value social map for the 6 known platforms.
  */
 function socialLinksToLegacySocial(
 	links: SocialLink[] | undefined,
-	existingMap?: Record<string, string | undefined>,
 ): Record<string, string | undefined> {
-	const result: Record<string, string | undefined> = { ...existingMap };
+	const result: Record<string, string | undefined> = {};
 	if (!links || !Array.isArray(links)) return result;
 	for (const link of links) {
-		const platform = link.platform || link.label.toLowerCase().replace(/[^a-z0-9_-]/g, "");
-		if (platform && link.url && !result[platform]) {
-			result[platform] = link.url;
+		const platform = link.platform?.toLowerCase();
+		if (
+			platform &&
+			KNOWN_LEGACY_PLATFORMS.has(platform) &&
+			link.url &&
+			result[platform] === undefined
+		) {
+			result[platform] = urlToLegacySocialHandle(platform, link.url);
 		}
 	}
 	return result;
+}
+
+/**
+ * Normalize and deduplicate SocialLinks ensuring valid URLs and unique IDs.
+ */
+function normalizeSocialLinks(links: unknown): SocialLink[] {
+	if (!Array.isArray(links)) return [];
+	const seenIds = new Set<string>();
+	const normalized: SocialLink[] = [];
+
+	for (const raw of links) {
+		if (!raw || typeof raw !== "object") continue;
+		const item = raw as Partial<SocialLink>;
+		if (
+			typeof item.url !== "string" ||
+			!item.url.trim() ||
+			!HTTP_URL_RE.test(item.url.trim())
+		) {
+			continue;
+		}
+		const url = item.url.trim();
+		const label =
+			typeof item.label === "string" && item.label.trim()
+				? item.label.trim()
+				: "Social Link";
+		const platform =
+			typeof item.platform === "string" && item.platform.trim()
+				? item.platform.trim().toLowerCase()
+				: undefined;
+		const relMe = item.relMe === true;
+
+		let id =
+			typeof item.id === "string" && item.id.trim()
+				? item.id.trim()
+				: platform
+					? `link-${platform}`
+					: `link-${normalized.length + 1}`;
+		if (seenIds.has(id)) {
+			let counter = 1;
+			while (seenIds.has(`${id}-${counter}`)) {
+				counter++;
+			}
+			id = `${id}-${counter}`;
+		}
+		seenIds.add(id);
+
+		normalized.push({
+			id,
+			...(platform ? { platform } : {}),
+			label,
+			url,
+			relMe,
+		});
+	}
+	return normalized;
+}
+
+/**
+ * Non-destructively merge a legacy social map patch into an existing SocialLink array.
+ */
+function mergeLegacySocialPatch(
+	existingLinks: SocialLink[],
+	patch: Record<string, unknown>,
+): SocialLink[] {
+	const links = [...existingLinks];
+
+	for (const [platform, rawValue] of Object.entries(patch)) {
+		const platformKey = platform.toLowerCase();
+		const existingIndex = links.findIndex(
+			(l) => l.platform?.toLowerCase() === platformKey,
+		);
+
+		if (rawValue === null || rawValue === "" || rawValue === undefined) {
+			if (existingIndex !== -1) {
+				links.splice(existingIndex, 1);
+			}
+			continue;
+		}
+
+		if (typeof rawValue !== "string" || !rawValue.trim()) continue;
+		const url = legacySocialValueToUrl(platformKey, rawValue);
+		if (!url) continue;
+
+		if (existingIndex !== -1) {
+			const current = links[existingIndex]!;
+			links[existingIndex] = {
+				...current,
+				url,
+			};
+		} else {
+			links.push({
+				id: `legacy-${platformKey}`,
+				platform: platformKey,
+				label:
+					LEGACY_PLATFORM_LABELS[platformKey] ??
+					platform.charAt(0).toUpperCase() + platform.slice(1),
+				url,
+				relMe: false,
+			});
+		}
+	}
+
+	return normalizeSocialLinks(links);
 }
 
 function isPluginSettingEnvelopeRecord(value: unknown): value is Record<string, unknown> {
@@ -326,20 +540,26 @@ export async function getSiteSettingWithDb<K extends SiteSettingKey>(
 	const options = new OptionsRepository(db);
 	const value = await options.get<SiteSettings[K]>(`${SETTINGS_PREFIX}${key}`);
 
-	if (!value) {
-		if (key === "socialLinks") {
-			const legacySocial = await options.get<Record<string, string | undefined>>(`${SETTINGS_PREFIX}social`);
-			if (legacySocial) {
-				// eslint-disable-next-line typescript/no-unsafe-type-assertion -- synthesized fallback matches SocialLink[]
-				return legacySocialToSocialLinks(legacySocial) as unknown as SiteSettings[K];
-			}
-		} else if (key === "social") {
-			const links = await options.get<SocialLink[]>(`${SETTINGS_PREFIX}socialLinks`);
-			if (links && Array.isArray(links)) {
-				// eslint-disable-next-line typescript/no-unsafe-type-assertion -- synthesized fallback matches social map
-				return socialLinksToLegacySocial(links) as unknown as SiteSettings[K];
-			}
+	if (key === "social") {
+		const links = await options.get<SocialLink[]>(`${SETTINGS_PREFIX}socialLinks`);
+		if (links && Array.isArray(links)) {
+			// eslint-disable-next-line typescript/no-unsafe-type-assertion -- synthesized fallback matches social map
+			return socialLinksToLegacySocial(normalizeSocialLinks(links)) as unknown as SiteSettings[K];
 		}
+	} else if (key === "socialLinks") {
+		if (value && Array.isArray(value)) {
+			// eslint-disable-next-line typescript/no-unsafe-type-assertion -- normalized links
+			return normalizeSocialLinks(value) as unknown as SiteSettings[K];
+		}
+		const legacySocial = await options.get<Record<string, string | undefined>>(`${SETTINGS_PREFIX}social`);
+		if (legacySocial) {
+			// eslint-disable-next-line typescript/no-unsafe-type-assertion -- synthesized fallback matches SocialLink[]
+			return legacySocialToSocialLinks(legacySocial) as unknown as SiteSettings[K];
+		}
+		return undefined;
+	}
+
+	if (!value) {
 		return undefined;
 	}
 
@@ -523,20 +743,10 @@ async function loadSiteSettingsSnapshot(
 		};
 	}
 
-	// Bidirectional normalization for social and socialLinks
+	// Normalization for social and socialLinks: socialLinks is the source of truth
 	if (typedSettings.socialLinks && Array.isArray(typedSettings.socialLinks)) {
-		typedSettings.socialLinks = typedSettings.socialLinks.map((link, idx) => ({
-			...link,
-			id:
-				link.id ||
-				link.platform ||
-				link.label.toLowerCase().replace(/[^a-z0-9_-]/g, "") ||
-				String(idx),
-		}));
-		typedSettings.social = socialLinksToLegacySocial(
-			typedSettings.socialLinks,
-			typedSettings.social,
-		);
+		typedSettings.socialLinks = normalizeSocialLinks(typedSettings.socialLinks);
+		typedSettings.social = socialLinksToLegacySocial(typedSettings.socialLinks);
 	} else if (typedSettings.social && typeof typedSettings.social === "object") {
 		typedSettings.socialLinks = legacySocialToSocialLinks(typedSettings.social);
 	}
@@ -583,22 +793,9 @@ export async function setSiteSettings(
 				deletions.push(`${SETTINGS_PREFIX}social`);
 			}
 		} else if (key === "socialLinks" && Array.isArray(value)) {
-			const normalizedLinks: SocialLink[] = value.map((link, idx) => ({
-				id:
-					link.id ||
-					link.platform ||
-					link.label.toLowerCase().replace(/[^a-z0-9_-]/g, "") ||
-					(typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(idx)),
-				platform: link.platform,
-				label: link.label,
-				url: link.url,
-				relMe: link.relMe ?? false,
-			}));
+			const normalizedLinks = normalizeSocialLinks(value);
 			updates[`${SETTINGS_PREFIX}socialLinks`] = normalizedLinks;
-
-			if (settings.social === undefined) {
-				updates[`${SETTINGS_PREFIX}social`] = socialLinksToLegacySocial(normalizedLinks);
-			}
+			updates[`${SETTINGS_PREFIX}social`] = socialLinksToLegacySocial(normalizedLinks);
 		} else if (NESTED_SETTING_KEYS.has(key) && isRecord(value)) {
 			nestedPatches.push([key, value]);
 		} else {
@@ -618,6 +815,29 @@ export async function setSiteSettings(
 
 			for (const [key, patch] of nestedPatches) {
 				const optionName = `${SETTINGS_PREFIX}${key}`;
+				if (key === "social") {
+					if (settings.socialLinks !== undefined) {
+						// socialLinks was provided in the update and is already the source of truth
+						continue;
+					}
+					// Someone sent a patch to `social` (e.g. MCP, script, legacy API) without socialLinks.
+					// Non-destructively merge the patch into existing socialLinks:
+					const currentLinksRaw =
+						(await transactionOptions.get<SocialLink[]>(`${SETTINGS_PREFIX}socialLinks`)) ??
+						legacySocialToSocialLinks(
+							await transactionOptions.get<Record<string, unknown>>(optionName),
+						);
+					const mergedLinks = mergeLegacySocialPatch(currentLinksRaw, patch);
+					await transactionOptions.set(`${SETTINGS_PREFIX}socialLinks`, mergedLinks);
+					const syncedSocial = socialLinksToLegacySocial(mergedLinks);
+					if (Object.keys(syncedSocial).length === 0) {
+						await transactionOptions.delete(optionName);
+					} else {
+						await transactionOptions.set(optionName, syncedSocial);
+					}
+					continue;
+				}
+
 				const next = { ...(await transactionOptions.get<Record<string, unknown>>(optionName)) };
 				for (const [field, fieldValue] of Object.entries(patch)) {
 					if (fieldValue === null) delete next[field];
@@ -625,17 +845,8 @@ export async function setSiteSettings(
 				}
 				if (Object.keys(next).length === 0) {
 					await transactionOptions.delete(optionName);
-					if (key === "social" && settings.socialLinks === undefined) {
-						await transactionOptions.delete(`${SETTINGS_PREFIX}socialLinks`);
-					}
 				} else {
 					await transactionOptions.set(optionName, next);
-					if (key === "social" && settings.socialLinks === undefined) {
-						await transactionOptions.set(
-							`${SETTINGS_PREFIX}socialLinks`,
-							legacySocialToSocialLinks(next),
-						);
-					}
 				}
 			}
 

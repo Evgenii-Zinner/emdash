@@ -103,6 +103,34 @@ describe("EmDashHead", () => {
 		expect(html).toContain('<link rel="me" href="https://mastodon.social/@alice">');
 		expect(html).toContain('<link rel="me" href="https://github.com/alice">');
 		expect(html).not.toContain('<link rel="me" href="https://example.com/alice">');
-		expect(html).toContain('"sameAs":["https://mastodon.social/@alice","https://github.com/alice","https://example.com/alice"]');
+		expect(html).toContain(
+			'"sameAs":["https://mastodon.social/@alice","https://github.com/alice"]',
+		);
+		expect(html).not.toContain('"https://example.com/alice"');
+	});
+
+	it("never emits rel=\"me\" or sameAs for non-http values or unverified links", async () => {
+		const html = await render(
+			{
+				socialLinks: [
+					{
+						id: "bad-url",
+						label: "Bad Handle",
+						url: "@alice",
+						relMe: true,
+					},
+					{
+						id: "unverified",
+						label: "Unverified Profile",
+						url: "https://example.com/unverified",
+						relMe: false,
+					},
+				],
+			},
+			runtimeWithPluginMetadata([]),
+		);
+
+		expect(html).not.toContain('rel="me"');
+		expect(html).not.toContain('"sameAs"');
 	});
 });

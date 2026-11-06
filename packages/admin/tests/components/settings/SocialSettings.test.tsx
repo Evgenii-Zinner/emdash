@@ -112,20 +112,45 @@ describe("SocialSettings", () => {
 		}
 	});
 
-	it("automatically maps legacy social settings to dynamic links", async () => {
-		mockFetchSettings.mockResolvedValue({
-			title: "Legacy Site",
-			social: {
-				mastodon: "https://mastodon.social/@alice",
-			},
-		});
-
+	it("drops blank rows on submit", async () => {
 		const screen = await renderSocialSettings();
+		const addLinkBtn = screen.getByRole("button", { name: "Add Link" });
+		await userEvent.click(addLinkBtn);
 
-		await expect.element(screen.getByLabelText("Platform / Label")).toHaveValue("Mastodon");
-		await expect
-			.element(screen.getByLabelText("URL"))
-			.toHaveValue("https://mastodon.social/@alice");
+		// Now we have 3 rows, but 3rd row is completely empty
+		const labelInputs = screen.getByLabelText("Platform / Label");
+		await expect.poll(() => labelInputs.elements()).toHaveLength(3);
+
+		// Modify first row so form is dirty
+		await screen.getByLabelText("URL").first().fill("https://x.com/new_handle");
+
+		const saveBtn = screen.getByRole("button", { name: "Save", exact: true }).first();
+		await userEvent.click(saveBtn);
+
+		await vi.waitFor(() => {
+			expect(mockUpdateSettings).toHaveBeenCalledWith({
+				socialLinks: [
+					expect.objectContaining({ url: "https://x.com/new_handle" }),
+					expect.objectContaining({ url: "https://github.com/example" }),
+				],
+			});
+		});
+	});
+
+	it("shows validation error on partly filled rows", async () => {
+		const screen = await renderSocialSettings();
+		const addLinkBtn = screen.getByRole("button", { name: "Add Link" });
+		await userEvent.click(addLinkBtn);
+
+		const labelInputs = screen.getByLabelText("Platform / Label");
+		await labelInputs.nth(2).fill("Mastodon");
+		// URL left blank
+
+		const saveBtn = screen.getByRole("button", { name: "Save", exact: true }).first();
+		await userEvent.click(saveBtn);
+
+		expect(mockUpdateSettings).not.toHaveBeenCalled();
+		await expect.element(screen.getByText("URL is required")).toBeInTheDocument();
 	});
 
 	it("enables both save actions when dirty and returns to saved after a header save", async () => {

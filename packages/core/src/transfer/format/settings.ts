@@ -18,6 +18,7 @@ export const PORTABLE_SETTING_NAMES = [
 	"site:postsPerPage",
 	"site:seo",
 	"site:social",
+	"site:socialLinks",
 	"site:tagline",
 	"site:timezone",
 	"site:title",

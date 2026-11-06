@@ -166,6 +166,26 @@ const settingsSocialSchema = z.object({
 	youtube: z.string().optional(),
 });
 
+const settingsSocialLinkSchema = z.object({
+	id: z.string().max(64).optional().describe("Unique identifier for this link"),
+	platform: z
+		.string()
+		.max(32)
+		.regex(/^[a-z0-9_-]+$/)
+		.optional()
+		.describe("Platform key (e.g. github, mastodon)"),
+	label: z.string().min(1).max(100).describe("Display label (e.g. GitHub, Mastodon)"),
+	url: z
+		.url()
+		.max(2048)
+		.refine((u) => HTTP_SCHEME_PATTERN.test(u), "URL must use http or https")
+		.describe("Profile URL (http or https)"),
+	relMe: z
+		.boolean()
+		.optional()
+		.describe("Whether to emit rel='me' identity verification link"),
+});
+
 const settingsSeoSchema = z.object({
 	titleSeparator: z
 		.string()
@@ -3822,7 +3842,19 @@ export function createMcpServer(
 					.describe("Default page size for content listings"),
 				dateFormat: z.string().optional().describe("Date format token string"),
 				timezone: z.string().optional().describe("IANA timezone identifier"),
-				social: settingsSocialSchema.optional().describe("Social handles / URLs"),
+				social: settingsSocialSchema
+					.optional()
+					.describe(
+						"Legacy social handles / URLs. Updates are merged non-destructively into socialLinks.",
+					),
+				socialLinks: z
+					.array(settingsSocialLinkSchema)
+					.max(50)
+					.nullable()
+					.optional()
+					.describe(
+						"List of dynamic social profile links with optional rel='me' verification",
+					),
 				seo: settingsSeoSchema.optional().describe("Site-wide SEO defaults"),
 			}),
 		},

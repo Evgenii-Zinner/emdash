@@ -61,6 +61,15 @@ export interface SocialLink {
 	relMe?: boolean;
 }
 
+/** Input shape for creating or updating a social link. `id` is optional on write. */
+export interface SocialLinkInput {
+	id?: string;
+	platform?: string;
+	label: string;
+	url: string;
+	relMe?: boolean;
+}
+
 /** Site settings schema */
 export interface SiteSettings {
 	// Identity
@@ -102,7 +111,6 @@ export interface SiteSettings {
 		instagram?: string;
 		linkedin?: string;
 		youtube?: string;
-		[platform: string]: string | undefined;
 	};
 
 	// SEO
@@ -122,7 +130,7 @@ export interface SiteSettingsUpdate extends Omit<
 	logo?: MediaReference | null;
 	favicon?: MediaReference | null;
 	seo?: SeoSettingsUpdate;
-	socialLinks?: SocialLink[] | null;
+	socialLinks?: SocialLinkInput[] | null;
 }
 
 /** Keys that are valid site settings */
