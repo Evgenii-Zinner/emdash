@@ -142,6 +142,7 @@ export {
 // Settings
 export {
 	type SiteSettings,
+	type SocialLink,
 	type SiteSettingsUpdate,
 	type SiteDomain,
 	fetchSettings,

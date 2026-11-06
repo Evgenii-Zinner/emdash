@@ -1,27 +1,29 @@
 /**
  * Social Settings sub-page
  *
- * Social media profile links (Twitter, GitHub, Facebook, Instagram, LinkedIn, YouTube).
+ * Dynamic social and profile links with optional rel="me" identity verification.
  */
 
-import { Banner, Input, Loader, useKumoToastManager } from "@cloudflare/kumo";
+import { Banner, Button, Input, Loader, Switch, useKumoToastManager } from "@cloudflare/kumo";
 import { useLingui } from "@lingui/react/macro";
+import { Plus, Trash } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 
-import { fetchSettings, updateSettings, type SiteSettings } from "../../lib/api";
+import { fetchSettings, updateSettings, type SiteSettings, type SocialLink } from "../../lib/api";
 import { SaveButton } from "../SaveButton.js";
 import { SettingRow, SettingsFrame, SettingsSection } from "./SettingsLayout.js";
 
 function socialSettingsSnapshot(settings: Partial<SiteSettings>) {
-	return JSON.stringify({
-		twitter: settings.social?.twitter ?? "",
-		github: settings.social?.github ?? "",
-		facebook: settings.social?.facebook ?? "",
-		instagram: settings.social?.instagram ?? "",
-		linkedin: settings.social?.linkedin ?? "",
-		youtube: settings.social?.youtube ?? "",
-	});
+	return JSON.stringify(
+		(settings.socialLinks ?? []).map((l) => ({
+			id: l.id,
+			platform: l.platform ?? "",
+			label: l.label,
+			url: l.url,
+			relMe: l.relMe ?? false,
+		})),
+	);
 }
 
 export function SocialSettings() {
@@ -44,8 +46,24 @@ export function SocialSettings() {
 
 	React.useEffect(() => {
 		if (settings) {
-			setFormData(settings);
-			setSavedFormData(settings);
+			const links: SocialLink[] =
+				settings.socialLinks ??
+				Object.entries(settings.social ?? {}).flatMap(([platform, url]) =>
+					url && typeof url === "string" && url.trim().length > 0
+						? [
+								{
+									id: platform,
+									platform,
+									label: platform.charAt(0).toUpperCase() + platform.slice(1),
+									url: url.trim(),
+									relMe: true,
+								},
+							]
+						: [],
+				);
+			const normalized: Partial<SiteSettings> = { ...settings, socialLinks: links };
+			setFormData(normalized);
+			setSavedFormData(normalized);
 		}
 	}, [settings]);
 
@@ -76,18 +94,46 @@ export function SocialSettings() {
 		saveMutation.mutate(formData);
 	};
 
-	const handleSocialChange = (key: string, value: string) => {
+	const handleAddLink = () => {
+		const newLink: SocialLink = {
+			id:
+				typeof crypto !== "undefined" && crypto.randomUUID
+					? crypto.randomUUID()
+					: `link_${Date.now()}`,
+			label: "",
+			url: "",
+			relMe: true,
+		};
 		setFormData((prev) => ({
 			...prev,
-			social: {
-				...prev.social,
-				[key]: value,
-			},
+			socialLinks: [...(prev.socialLinks ?? []), newLink],
 		}));
 	};
 
+	const handleUpdateLink = (
+		index: number,
+		field: keyof SocialLink,
+		value: string | boolean,
+	) => {
+		setFormData((prev) => {
+			const links = [...(prev.socialLinks ?? [])];
+			const target = links[index];
+			if (!target) return prev;
+			links[index] = { ...target, [field]: value };
+			return { ...prev, socialLinks: links };
+		});
+	};
+
+	const handleRemoveLink = (index: number) => {
+		setFormData((prev) => {
+			const links = [...(prev.socialLinks ?? [])];
+			links.splice(index, 1);
+			return { ...prev, socialLinks: links };
+		});
+	};
+
 	const title = t`Social Links`;
-	const description = t`Social media profile links`;
+	const description = t`Social media and profile links with identity verification`;
 
 	if (isLoading) {
 		return (
@@ -116,6 +162,8 @@ export function SocialSettings() {
 		);
 	}
 
+	const links = formData.socialLinks ?? [];
+
 	return (
 		<SettingsFrame
 			title={title}
@@ -131,63 +179,83 @@ export function SocialSettings() {
 		>
 			<form id="social-settings-form" onSubmit={handleSubmit} className="grid gap-8">
 				<SettingsSection
-					title={t`Social Profiles`}
-					description={t`Add your social media profiles. These are available to your site's theme and can be displayed in headers, footers, or author bios.`}
+					title={t`Profiles & Links`}
+					description={t`Add your social media profiles and links. Enable identity verification (rel="me") to verify ownership on platforms like Mastodon, Bluesky, and GitHub.`}
+					actions={
+						<Button
+							type="button"
+							variant="secondary"
+							size="sm"
+							icon={<Plus />}
+							onClick={handleAddLink}
+						>
+							{t`Add Link`}
+						</Button>
+					}
 				>
-					<SettingRow>
-						<Input
-							dir="ltr"
-							label={t`Twitter`}
-							value={formData.social?.twitter ?? ""}
-							onChange={(e) => handleSocialChange("twitter", e.target.value)}
-							description={t`Your Twitter/X handle (e.g., @username)`}
-						/>
-					</SettingRow>
-					<SettingRow>
-						<Input
-							dir="ltr"
-							label={t`GitHub`}
-							value={formData.social?.github ?? ""}
-							onChange={(e) => handleSocialChange("github", e.target.value)}
-							description={t`Your GitHub username`}
-						/>
-					</SettingRow>
-					<SettingRow>
-						<Input
-							dir="ltr"
-							label={t`Facebook`}
-							value={formData.social?.facebook ?? ""}
-							onChange={(e) => handleSocialChange("facebook", e.target.value)}
-							description={t`Your Facebook page or profile username`}
-						/>
-					</SettingRow>
-					<SettingRow>
-						<Input
-							dir="ltr"
-							label={t`Instagram`}
-							value={formData.social?.instagram ?? ""}
-							onChange={(e) => handleSocialChange("instagram", e.target.value)}
-							description={t`Your Instagram username`}
-						/>
-					</SettingRow>
-					<SettingRow>
-						<Input
-							dir="ltr"
-							label={t`LinkedIn`}
-							value={formData.social?.linkedin ?? ""}
-							onChange={(e) => handleSocialChange("linkedin", e.target.value)}
-							description={t`Your LinkedIn profile username`}
-						/>
-					</SettingRow>
-					<SettingRow>
-						<Input
-							dir="ltr"
-							label={t`YouTube`}
-							value={formData.social?.youtube ?? ""}
-							onChange={(e) => handleSocialChange("youtube", e.target.value)}
-							description={t`Your YouTube channel ID or handle`}
-						/>
-					</SettingRow>
+					{links.length === 0 ? (
+						<SettingRow>
+							<div className="py-6 text-center text-sm text-kumo-subtle">
+								{t`No social links configured yet. Click "Add Link" to add your first profile.`}
+							</div>
+						</SettingRow>
+					) : (
+						links.map((link, index) => (
+							<SettingRow key={link.id} className="grid gap-3">
+								<div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+									<div className="sm:w-1/3">
+										<Input
+											label={t`Platform / Label`}
+											placeholder={t`e.g. GitHub, Mastodon`}
+											value={link.label}
+											onChange={(e) =>
+												handleUpdateLink(index, "label", e.target.value)
+											}
+										/>
+									</div>
+									<div className="flex-1">
+										<Input
+											dir="ltr"
+											type="url"
+											label={t`URL`}
+											placeholder="https://..."
+											value={link.url}
+											onChange={(e) =>
+												handleUpdateLink(index, "url", e.target.value)
+											}
+										/>
+									</div>
+									<div className="flex shrink-0 items-center pb-1">
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											icon={<Trash className="h-4 w-4" />}
+											className="text-kumo-danger"
+											onClick={() => handleRemoveLink(index)}
+											aria-label={t`Remove ${link.label || "link"}`}
+										/>
+									</div>
+								</div>
+								<div className="flex items-center gap-2 pt-1 text-sm text-kumo-subtle">
+									<Switch
+										id={`rel-me-${link.id}`}
+										checked={link.relMe === true}
+										onCheckedChange={(checked) =>
+											handleUpdateLink(index, "relMe", checked)
+										}
+										aria-label={t`Verify identity (rel="me") for ${link.label || link.url || "link"}`}
+									/>
+									<label
+										htmlFor={`rel-me-${link.id}`}
+										className="cursor-pointer select-none"
+									>
+										{t`Verify identity with rel="me"`}
+									</label>
+								</div>
+							</SettingRow>
+						))
+					)}
 				</SettingsSection>
 
 				<div className="flex justify-end">
