@@ -1,8 +1,19 @@
-/**
- * Site Settings Types
- *
- * Global configuration for the site (title, logo, social links, etc.)
- */
+import type {
+	ProfileLink,
+	ProfileLinkInput,
+	SiteIdentity,
+	SiteIdentityInput,
+} from "../identity/types.js";
+
+export type {
+	ProfileLink,
+	ProfileLinkInput,
+	SiteIdentity,
+	SiteIdentityInput,
+	PostalAddress,
+	OrganizationIdentifier,
+	OrganizationPolicies,
+} from "../identity/types.js";
 
 /**
  * Media reference for logo/favicon/seo.defaultOgImage.
@@ -93,10 +104,16 @@ export interface SiteSettings {
 	dateFormat: string;
 	timezone: string;
 
-	// Social
+	// Identity & Social
+	/**
+	 * Canonical site identity and publisher entity configuration (Organization or Person).
+	 * RFC #4765 Phase 1.
+	 */
+	identity?: SiteIdentity;
+
 	/**
 	 * Canonical structured social links list with custom platforms, labels,
-	 * and `rel="me"` verification toggles.
+	 * and `rel="me"` verification toggles. Synced with `identity.links`.
 	 */
 	socialLinks?: SocialLink[];
 
@@ -125,11 +142,12 @@ export interface SeoSettingsUpdate extends Omit<SeoSettings, "defaultOgImage"> {
 /** Site-settings write shape. `null` removes media references; omitted fields are unchanged. */
 export interface SiteSettingsUpdate extends Omit<
 	Partial<SiteSettings>,
-	"logo" | "favicon" | "seo" | "socialLinks"
+	"logo" | "favicon" | "seo" | "socialLinks" | "identity"
 > {
 	logo?: MediaReference | null;
 	favicon?: MediaReference | null;
 	seo?: SeoSettingsUpdate;
+	identity?: SiteIdentityInput | null;
 	socialLinks?: SocialLinkInput[] | null;
 }
 

@@ -14,6 +14,7 @@ export const PORTABLE_SETTING_NAMES = [
 	"emdash:site_title",
 	"site:dateFormat",
 	"site:favicon",
+	"site:identity",
 	"site:logo",
 	"site:postsPerPage",
 	"site:seo",
@@ -71,6 +72,7 @@ export const SETTING_MEDIA_REFERENCE_PATHS: Readonly<
 	"site:logo": [["mediaId"]],
 	"site:favicon": [["mediaId"]],
 	"site:seo": [["defaultOgImage", "mediaId"]],
+	"site:identity": [["logo", "mediaId"]],
 });
 
 /** Media ids referenced by a portable setting's value. */

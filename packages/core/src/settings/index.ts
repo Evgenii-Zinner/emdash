@@ -38,6 +38,16 @@ import {
 	invalidateSingleFlightCache,
 	singleFlightCached,
 } from "../utils/single-flight-cache.js";
+import {
+	extractLegacyHandle,
+	getPlatform,
+	LEGACY_PLATFORM_KEYS,
+	resolveProfileUrl,
+	type ProfileLink,
+	type ProfileLinkInput,
+	type SiteIdentity,
+	type SiteIdentityInput,
+} from "../identity/index.js";
 import type {
 	MediaReference,
 	SeoSettings,
@@ -58,14 +68,7 @@ const HTTP_URL_RE = /^https?:\/\//i;
 const LEADING_AT_RE = /^@/;
 const YOUTUBE_CHANNEL_ID_RE = /^UC[\w-]{22}$/;
 
-const KNOWN_LEGACY_PLATFORMS = new Set([
-	"twitter",
-	"github",
-	"facebook",
-	"instagram",
-	"linkedin",
-	"youtube",
-]);
+const KNOWN_LEGACY_PLATFORMS = new Set<string>(LEGACY_PLATFORM_KEYS);
 
 const LEGACY_PLATFORM_LABELS: Record<string, string> = {
 	twitter: "X (Twitter)",
@@ -77,169 +80,39 @@ const LEGACY_PLATFORM_LABELS: Record<string, string> = {
 };
 
 /**
- * Convert a legacy handle or URL value into a valid absolute http(s) URL.
- * Returns null if the value cannot form a valid URL.
+ * Normalizes an array of ProfileLinks (RFC #4765 Phase 1).
+ * Enforces unique IDs, trims values, ignores forbidden URI schemes, and sets defaults.
  */
-function legacySocialValueToUrl(platform: string, value: string): string | null {
-	const raw = value.trim();
-	if (!raw) return null;
-	if (HTTP_URL_RE.test(raw)) return raw;
-
-	const handle = raw.replace(LEADING_AT_RE, "");
-	if (!handle) return null;
-	const path = encodeURIComponent(handle);
-
-	switch (platform.toLowerCase()) {
-		case "twitter":
-			return `https://x.com/${path}`;
-		case "github":
-			return `https://github.com/${path}`;
-		case "facebook":
-			return `https://www.facebook.com/${path}`;
-		case "instagram":
-			return `https://www.instagram.com/${path}`;
-		case "linkedin":
-			return `https://www.linkedin.com/in/${path}`;
-		case "youtube":
-			return !raw.startsWith("@") && YOUTUBE_CHANNEL_ID_RE.test(handle)
-				? `https://www.youtube.com/channel/${path}`
-				: `https://www.youtube.com/@${path}`;
-		default:
-			return null;
-	}
-}
-
-/**
- * Extract a legacy username/handle from a URL for a known platform.
- * If the URL does not match the platform's standard profile pattern, returns the URL as-is.
- */
-function urlToLegacySocialHandle(platform: string, url: string): string {
-	const raw = url.trim();
-	if (!raw) return "";
-
-	try {
-		switch (platform.toLowerCase()) {
-			case "github": {
-				const match = /^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)/i.exec(raw);
-				return match && match[1] ? decodeURIComponent(match[1]) : raw;
-			}
-			case "twitter": {
-				const match = /^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([^/?#]+)/i.exec(raw);
-				return match && match[1]
-					? `@${decodeURIComponent(match[1]).replace(/^@/, "")}`
-					: raw;
-			}
-			case "facebook": {
-				const match = /^https?:\/\/(?:www\.)?facebook\.com\/([^/?#]+)/i.exec(raw);
-				return match && match[1] ? decodeURIComponent(match[1]) : raw;
-			}
-			case "instagram": {
-				const match = /^https?:\/\/(?:www\.)?instagram\.com\/([^/?#]+)/i.exec(raw);
-				return match && match[1] ? decodeURIComponent(match[1]) : raw;
-			}
-			case "linkedin": {
-				const match = /^https?:\/\/(?:www\.)?linkedin\.com\/in\/([^/?#]+)/i.exec(raw);
-				return match && match[1] ? decodeURIComponent(match[1]) : raw;
-			}
-			case "youtube": {
-				const channelMatch = /^https?:\/\/(?:www\.)?youtube\.com\/channel\/([^/?#]+)/i.exec(raw);
-				if (channelMatch && channelMatch[1]) return decodeURIComponent(channelMatch[1]);
-				const userMatch = /^https?:\/\/(?:www\.)?youtube\.com\/@([^/?#]+)/i.exec(raw);
-				if (userMatch && userMatch[1]) return decodeURIComponent(userMatch[1]);
-				return raw;
-			}
-			default:
-				return raw;
-		}
-	} catch {
-		return raw;
-	}
-}
-
-/**
- * Convert a legacy key-value social map to canonical SocialLink array.
- * Migrated entries default to relMe: false to prevent unverified identity claims on upgrade.
- */
-function legacySocialToSocialLinks(
-	social: Record<string, unknown> | null | undefined,
-): SocialLink[] {
-	if (!social || typeof social !== "object") return [];
-	const links: SocialLink[] = [];
-	for (const [platform, raw] of Object.entries(social)) {
-		if (typeof raw !== "string" || !raw.trim()) continue;
-		const url = legacySocialValueToUrl(platform, raw);
-		if (!url) continue;
-		const platformKey = platform.toLowerCase();
-		links.push({
-			id: `legacy-${platformKey}`,
-			platform: platformKey,
-			label:
-				LEGACY_PLATFORM_LABELS[platformKey] ??
-				platform.charAt(0).toUpperCase() + platform.slice(1),
-			url,
-			relMe: false,
-		});
-	}
-	return links;
-}
-
-/**
- * Convert canonical SocialLink array to legacy key-value social map for the 6 known platforms.
- */
-function socialLinksToLegacySocial(
-	links: SocialLink[] | undefined,
-): Record<string, string | undefined> {
-	const result: Record<string, string | undefined> = {};
-	if (!links || !Array.isArray(links)) return result;
-	for (const link of links) {
-		const platform = link.platform?.toLowerCase();
-		if (
-			platform &&
-			KNOWN_LEGACY_PLATFORMS.has(platform) &&
-			link.url &&
-			result[platform] === undefined
-		) {
-			result[platform] = urlToLegacySocialHandle(platform, link.url);
-		}
-	}
-	return result;
-}
-
-/**
- * Normalize and deduplicate SocialLinks ensuring valid URLs and unique IDs.
- */
-function normalizeSocialLinks(links: unknown): SocialLink[] {
+export function normalizeProfileLinks(links: unknown): ProfileLink[] {
 	if (!Array.isArray(links)) return [];
 	const seenIds = new Set<string>();
-	const normalized: SocialLink[] = [];
+	const normalized: ProfileLink[] = [];
 
 	for (const raw of links) {
 		if (!raw || typeof raw !== "object") continue;
-		const item = raw as Partial<SocialLink>;
-		if (
-			typeof item.url !== "string" ||
-			!item.url.trim() ||
-			!HTTP_URL_RE.test(item.url.trim())
-		) {
-			continue;
-		}
-		const url = item.url.trim();
-		const label =
-			typeof item.label === "string" && item.label.trim()
-				? item.label.trim()
-				: "Social Link";
+		const item = raw as Partial<ProfileLink>;
+		if (typeof item.value !== "string" || !item.value.trim()) continue;
+		const value = item.value.trim();
+		if (value.length > 2048) continue;
+		if (/^(javascript|data|vbscript|file):/i.test(value)) continue;
+
 		const platform =
 			typeof item.platform === "string" && item.platform.trim()
 				? item.platform.trim().toLowerCase()
-				: undefined;
+				: "custom";
+		const def = getPlatform(platform);
+		const label =
+			typeof item.label === "string" && item.label.trim()
+				? item.label.trim()
+				: def?.displayName ?? (platform === "custom" ? "Custom Link" : platform.charAt(0).toUpperCase() + platform.slice(1));
+
+		const sameAs = item.sameAs === true;
 		const relMe = item.relMe === true;
 
 		let id =
 			typeof item.id === "string" && item.id.trim()
 				? item.id.trim()
-				: platform
-					? `link-${platform}`
-					: `link-${normalized.length + 1}`;
+				: `link-${platform}`;
 		if (seenIds.has(id)) {
 			let counter = 1;
 			while (seenIds.has(`${id}-${counter}`)) {
@@ -251,22 +124,74 @@ function normalizeSocialLinks(links: unknown): SocialLink[] {
 
 		normalized.push({
 			id,
-			...(platform ? { platform } : {}),
+			platform,
 			label,
-			url,
+			value,
+			sameAs,
 			relMe,
 		});
+		if (normalized.length >= 50) break;
 	}
 	return normalized;
 }
 
 /**
- * Non-destructively merge a legacy social map patch into an existing SocialLink array.
+ * Converts a legacy site:social map into canonical ProfileLink array.
+ * Emits sameAs: true and relMe: false per RFC #4765 specification.
  */
-function mergeLegacySocialPatch(
-	existingLinks: SocialLink[],
+export function legacySocialToProfileLinks(
+	social: Record<string, unknown> | null | undefined,
+): ProfileLink[] {
+	if (!social || typeof social !== "object") return [];
+	const links: ProfileLink[] = [];
+	for (const [platform, raw] of Object.entries(social)) {
+		if (typeof raw !== "string" || !raw.trim()) continue;
+		const platformKey = platform.toLowerCase();
+		const def = getPlatform(platformKey);
+		links.push({
+			id: `legacy-${platformKey}`,
+			platform: platformKey,
+			label: def?.displayName ?? (LEGACY_PLATFORM_LABELS[platformKey] || platform),
+			value: raw.trim(),
+			sameAs: true,
+			relMe: false,
+		});
+	}
+	return links;
+}
+
+/**
+ * Extracts legacy site:social key-value map from ProfileLinks.
+ * Uses the first matching link for each of the 6 legacy platforms.
+ */
+export function profileLinksToLegacySocial(
+	links: ProfileLink[] | undefined,
+): Record<string, string | undefined> {
+	const result: Record<string, string | undefined> = {};
+	if (!links || !Array.isArray(links)) return result;
+	for (const link of links) {
+		const platform = link.platform?.toLowerCase();
+		if (
+			platform &&
+			KNOWN_LEGACY_PLATFORMS.has(platform) &&
+			link.value &&
+			result[platform] === undefined
+		) {
+			const handle = extractLegacyHandle(platform, link.value);
+			result[platform] = handle || link.value;
+		}
+	}
+	return result;
+}
+
+/**
+ * Non-destructively merges updates from a legacy site:social patch into ProfileLinks.
+ * RFC #4765 Phase 1: leaves custom links and switches untouched.
+ */
+export function mergeLegacySocialPatchIntoIdentityLinks(
+	existingLinks: ProfileLink[],
 	patch: Record<string, unknown>,
-): SocialLink[] {
+): ProfileLink[] {
 	const links = [...existingLinks];
 
 	for (const [platform, rawValue] of Object.entries(patch)) {
@@ -283,29 +208,99 @@ function mergeLegacySocialPatch(
 		}
 
 		if (typeof rawValue !== "string" || !rawValue.trim()) continue;
-		const url = legacySocialValueToUrl(platformKey, rawValue);
-		if (!url) continue;
+		const val = rawValue.trim();
 
 		if (existingIndex !== -1) {
 			const current = links[existingIndex]!;
 			links[existingIndex] = {
 				...current,
-				url,
+				value: val,
 			};
 		} else {
+			const def = getPlatform(platformKey);
 			links.push({
 				id: `legacy-${platformKey}`,
 				platform: platformKey,
-				label:
-					LEGACY_PLATFORM_LABELS[platformKey] ??
-					platform.charAt(0).toUpperCase() + platform.slice(1),
-				url,
+				label: def?.displayName ?? (LEGACY_PLATFORM_LABELS[platformKey] || platformKey),
+				value: val,
+				sameAs: true,
 				relMe: false,
 			});
 		}
 	}
 
-	return normalizeSocialLinks(links);
+	return normalizeProfileLinks(links);
+}
+
+// ---------------------------------------------------------------------------
+// Backwards compatibility helpers for SocialLink
+// ---------------------------------------------------------------------------
+
+function legacySocialValueToUrl(platform: string, value: string): string | null {
+	const raw = value.trim();
+	if (!raw) return null;
+	return resolveProfileUrl(platform, raw);
+}
+
+function urlToLegacySocialHandle(platform: string, url: string): string {
+	const extracted = extractLegacyHandle(platform, url);
+	return extracted || url.trim();
+}
+
+function profileLinksToSocialLinks(links: ProfileLink[]): SocialLink[] {
+	return links.map((l) => ({
+		id: l.id,
+		platform: l.platform,
+		label: l.label ?? l.platform,
+		url: resolveProfileUrl(l.platform, l.value) || l.value,
+		relMe: l.relMe,
+	}));
+}
+
+function socialLinksToProfileLinks(links: SocialLink[]): ProfileLink[] {
+	return links.map((l) => ({
+		id: l.id,
+		platform: l.platform ?? "custom",
+		label: l.label,
+		value: l.url,
+		sameAs: true,
+		relMe: l.relMe === true,
+	}));
+}
+
+function normalizeSocialLinks(links: unknown): SocialLink[] {
+	if (!Array.isArray(links)) return [];
+	const profileLinks: ProfileLink[] = links.map((l: any) => ({
+		id: l.id || "",
+		platform: l.platform || "custom",
+		label: l.label,
+		value: l.url || l.value || "",
+		sameAs: true,
+		relMe: l.relMe === true,
+	}));
+	return profileLinksToSocialLinks(normalizeProfileLinks(profileLinks));
+}
+
+function legacySocialToSocialLinks(
+	social: Record<string, unknown> | null | undefined,
+): SocialLink[] {
+	return profileLinksToSocialLinks(legacySocialToProfileLinks(social));
+}
+
+function socialLinksToLegacySocial(
+	links: SocialLink[] | undefined,
+): Record<string, string | undefined> {
+	if (!links) return {};
+	return profileLinksToLegacySocial(socialLinksToProfileLinks(links));
+}
+
+function mergeLegacySocialPatch(
+	existingLinks: SocialLink[],
+	patch: Record<string, unknown>,
+): SocialLink[] {
+	const pLinks = socialLinksToProfileLinks(existingLinks);
+	const merged = mergeLegacySocialPatchIntoIdentityLinks(pLinks, patch);
+	return profileLinksToSocialLinks(merged);
 }
 
 function isPluginSettingEnvelopeRecord(value: unknown): value is Record<string, unknown> {
@@ -727,6 +722,10 @@ async function loadSiteSettingsSnapshot(
 		settings[settingKey] = value.value;
 	}
 
+	if (Object.keys(settings).length === 0) {
+		return { data: {}, version };
+	}
+
 	const typedSettings = settings as Partial<SiteSettings>;
 
 	// Resolve media references
@@ -743,15 +742,96 @@ async function loadSiteSettingsSnapshot(
 		};
 	}
 
-	// Normalization for social and socialLinks: socialLinks is the source of truth
-	if (typedSettings.socialLinks && Array.isArray(typedSettings.socialLinks)) {
-		typedSettings.socialLinks = normalizeSocialLinks(typedSettings.socialLinks);
-		typedSettings.social = socialLinksToLegacySocial(typedSettings.socialLinks);
-	} else if (typedSettings.social && typeof typedSettings.social === "object") {
-		typedSettings.socialLinks = legacySocialToSocialLinks(typedSettings.social);
+	// Normalization for identity, social and socialLinks:
+	// identity.links is the authoritative source of truth (RFC #4765 Phase 1).
+	if (typedSettings.identity && typeof typedSettings.identity === "object") {
+		const rawIdentity = typedSettings.identity as Partial<SiteIdentity>;
+		const normalizedLinks = normalizeProfileLinks(rawIdentity.links);
+		typedSettings.identity = {
+			type: rawIdentity.type === "Person" ? "Person" : "Organization",
+			name: rawIdentity.name || typedSettings.title,
+			alternateName: rawIdentity.alternateName,
+			description: rawIdentity.description,
+			logo: rawIdentity.logo
+				? await resolveMediaReference(rawIdentity.logo, db, storage)
+				: typedSettings.logo,
+			url: rawIdentity.url || typedSettings.url,
+			email: rawIdentity.email,
+			telephone: rawIdentity.telephone,
+			address: rawIdentity.address,
+			areaServed: rawIdentity.areaServed,
+			foundingDate: rawIdentity.foundingDate,
+			identifiers: rawIdentity.identifiers,
+			policies: rawIdentity.policies,
+			jobTitle: rawIdentity.jobTitle,
+			bylineId: rawIdentity.bylineId,
+			links: normalizedLinks,
+		};
+		typedSettings.social = profileLinksToLegacySocial(normalizedLinks);
+		typedSettings.socialLinks = profileLinksToSocialLinks(normalizedLinks);
+	} else if (typedSettings.socialLinks && Array.isArray(typedSettings.socialLinks)) {
+		const pLinks = socialLinksToProfileLinks(normalizeSocialLinks(typedSettings.socialLinks));
+		typedSettings.identity = {
+			type: "Organization",
+			name: typedSettings.title,
+			logo: typedSettings.logo,
+			url: typedSettings.url,
+			links: pLinks,
+		};
+		typedSettings.social = profileLinksToLegacySocial(pLinks);
+		typedSettings.socialLinks = profileLinksToSocialLinks(pLinks);
+	} else {
+		// Synthesize identity from legacy social and site metadata
+		const legacyLinks = legacySocialToProfileLinks(typedSettings.social as Record<string, unknown> | undefined);
+		typedSettings.identity = {
+			type: "Organization",
+			name: typedSettings.title,
+			logo: typedSettings.logo,
+			url: typedSettings.url,
+			links: legacyLinks,
+		};
+		typedSettings.socialLinks = profileLinksToSocialLinks(legacyLinks);
 	}
 
 	return { data: typedSettings, version };
+}
+
+/**
+ * Resolves the site publisher identity (Organization or Person) with profile links
+ * and media references resolved. Returns synthesized identity when site:identity is absent.
+ * RFC #4765 Phase 1.
+ */
+export async function getSiteIdentity(): Promise<SiteIdentity> {
+	const settings = await getSiteSettings();
+	return (
+		settings.identity ?? {
+			type: "Organization",
+			name: settings.title,
+			logo: settings.logo,
+			url: settings.url,
+			links: [],
+		}
+	);
+}
+
+/**
+ * Resolves site identity with an explicit DB handle.
+ * @internal Used by admin routes and migration tasks.
+ */
+export async function getSiteIdentityWithDb(
+	db: Kysely<Database>,
+	storage: Storage | null = null,
+): Promise<SiteIdentity> {
+	const settings = await getSiteSettingsWithDb(db, storage);
+	return (
+		settings.identity ?? {
+			type: "Organization",
+			name: settings.title,
+			logo: settings.logo,
+			url: settings.url,
+			links: [],
+		}
+	);
 }
 
 /**
@@ -789,13 +869,45 @@ export async function setSiteSettings(
 		if (value === undefined) continue;
 		if (value === null) {
 			deletions.push(`${SETTINGS_PREFIX}${key}`);
-			if (key === "socialLinks") {
+			if (key === "identity") {
+				deletions.push(`${SETTINGS_PREFIX}social`);
+				deletions.push(`${SETTINGS_PREFIX}socialLinks`);
+			} else if (key === "socialLinks") {
 				deletions.push(`${SETTINGS_PREFIX}social`);
 			}
+		} else if (key === "identity" && isRecord(value)) {
+			const idInput = value as SiteIdentityInput;
+			const normalizedLinks = normalizeProfileLinks(idInput.links);
+			const cleanIdentity: SiteIdentity = {
+				type: idInput.type === "Person" ? "Person" : "Organization",
+				...(idInput.name ? { name: idInput.name.trim() } : {}),
+				...(idInput.alternateName ? { alternateName: idInput.alternateName.trim() } : {}),
+				...(idInput.description ? { description: idInput.description.trim() } : {}),
+				...(idInput.logo ? { logo: idInput.logo } : {}),
+				...(idInput.url ? { url: idInput.url.trim() } : {}),
+				...(idInput.email ? { email: idInput.email.trim() } : {}),
+				...(idInput.telephone ? { telephone: idInput.telephone.trim() } : {}),
+				...(idInput.address ? { address: idInput.address } : {}),
+				...(idInput.areaServed ? { areaServed: idInput.areaServed } : {}),
+				...(idInput.foundingDate ? { foundingDate: idInput.foundingDate.trim() } : {}),
+				...(idInput.identifiers ? { identifiers: idInput.identifiers } : {}),
+				...(idInput.policies ? { policies: idInput.policies } : {}),
+				...(idInput.jobTitle ? { jobTitle: idInput.jobTitle.trim() } : {}),
+				...(idInput.bylineId ? { bylineId: idInput.bylineId.trim() } : {}),
+				links: normalizedLinks,
+			};
+			updates[`${SETTINGS_PREFIX}identity`] = cleanIdentity;
+			updates[`${SETTINGS_PREFIX}social`] = profileLinksToLegacySocial(normalizedLinks);
+			updates[`${SETTINGS_PREFIX}socialLinks`] = profileLinksToSocialLinks(normalizedLinks);
 		} else if (key === "socialLinks" && Array.isArray(value)) {
 			const normalizedLinks = normalizeSocialLinks(value);
 			updates[`${SETTINGS_PREFIX}socialLinks`] = normalizedLinks;
 			updates[`${SETTINGS_PREFIX}social`] = socialLinksToLegacySocial(normalizedLinks);
+			const pLinks = socialLinksToProfileLinks(normalizedLinks);
+			updates[`${SETTINGS_PREFIX}identity`] = {
+				type: "Organization",
+				links: pLinks,
+			};
 		} else if (NESTED_SETTING_KEYS.has(key) && isRecord(value)) {
 			nestedPatches.push([key, value]);
 		} else {
@@ -816,20 +928,27 @@ export async function setSiteSettings(
 			for (const [key, patch] of nestedPatches) {
 				const optionName = `${SETTINGS_PREFIX}${key}`;
 				if (key === "social") {
-					if (settings.socialLinks !== undefined) {
-						// socialLinks was provided in the update and is already the source of truth
+					if (settings.identity !== undefined || settings.socialLinks !== undefined) {
+						// identity or socialLinks was provided in the update and is already authoritative
 						continue;
 					}
-					// Someone sent a patch to `social` (e.g. MCP, script, legacy API) without socialLinks.
-					// Non-destructively merge the patch into existing socialLinks:
+					// Someone sent a patch to `social` (e.g. MCP, script, legacy API) without identity.
+					// Non-destructively merge the patch into existing identity links (RFC #4765):
+					const currentIdentity = await transactionOptions.get<SiteIdentity>(`${SETTINGS_PREFIX}identity`);
 					const currentLinksRaw =
-						(await transactionOptions.get<SocialLink[]>(`${SETTINGS_PREFIX}socialLinks`)) ??
-						legacySocialToSocialLinks(
+						currentIdentity?.links ??
+						legacySocialToProfileLinks(
 							await transactionOptions.get<Record<string, unknown>>(optionName),
 						);
-					const mergedLinks = mergeLegacySocialPatch(currentLinksRaw, patch);
-					await transactionOptions.set(`${SETTINGS_PREFIX}socialLinks`, mergedLinks);
-					const syncedSocial = socialLinksToLegacySocial(mergedLinks);
+					const mergedLinks = mergeLegacySocialPatchIntoIdentityLinks(currentLinksRaw, patch);
+					const nextIdentity: SiteIdentity = {
+						type: currentIdentity?.type ?? "Organization",
+						...(currentIdentity ?? {}),
+						links: mergedLinks,
+					};
+					await transactionOptions.set(`${SETTINGS_PREFIX}identity`, nextIdentity);
+					await transactionOptions.set(`${SETTINGS_PREFIX}socialLinks`, profileLinksToSocialLinks(mergedLinks));
+					const syncedSocial = profileLinksToLegacySocial(mergedLinks);
 					if (Object.keys(syncedSocial).length === 0) {
 						await transactionOptions.delete(optionName);
 					} else {

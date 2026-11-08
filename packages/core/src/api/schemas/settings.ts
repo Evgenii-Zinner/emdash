@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import {
+	profileLinkInputSchema,
+	profileLinkResponseSchema,
+	siteIdentityInputSchema,
+	siteIdentityResponseSchema,
+} from "../../identity/schemas.js";
 import { httpUrl } from "./common.js";
 
 // ---------------------------------------------------------------------------
@@ -63,6 +69,7 @@ export const settingsUpdateBody = z
 		postsPerPage: z.number().int().min(1).max(100).optional(),
 		dateFormat: z.string().optional(),
 		timezone: z.string().optional(),
+		identity: siteIdentityInputSchema.nullable().optional(),
 		social: socialSettings.optional(),
 		socialLinks: z.array(socialLinkInput).max(50).nullable().optional(),
 		seo: seoSettingsInput.optional(),
@@ -112,6 +119,7 @@ export const siteSettingsSchema = z
 		postsPerPage: z.number().int().optional(),
 		dateFormat: z.string().optional(),
 		timezone: z.string().optional(),
+		identity: siteIdentityResponseSchema.optional(),
 		social: socialSettings.optional(),
 		socialLinks: z.array(socialLinkResponse).optional(),
 		seo: seoSettingsResponse.optional(),

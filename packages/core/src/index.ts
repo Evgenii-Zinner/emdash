@@ -598,13 +598,15 @@ export type {
 	VerifyPreviewTokenOptions,
 	GetPreviewUrlOptions,
 } from "./preview/index.js";
-// Site Settings
+// Site Settings & Identity (RFC #4765 Phase 1)
 export {
 	getPluginSetting,
 	getPluginSettings,
 	getSiteSetting,
 	getSiteSettings,
 	getSiteSettingsWithCacheHint,
+	getSiteIdentity,
+	getSiteIdentityWithDb,
 	setSiteSettings,
 } from "./settings/index.js";
 export type {
@@ -614,7 +616,21 @@ export type {
 	MediaReference,
 	SeoSettings,
 	SeoSettingsUpdate,
+	SiteIdentity,
+	SiteIdentityInput,
+	ProfileLink,
+	ProfileLinkInput,
+	PostalAddress,
+	OrganizationIdentifier,
+	OrganizationPolicies,
 } from "./settings/types.js";
+export {
+	getPlatform,
+	getAllPlatforms,
+	resolveProfileUrl,
+	extractLegacyHandle,
+	type PlatformDefinition,
+} from "./identity/index.js";
 
 // SEO
 export { getSeoMeta, getContentSeo, getHreflangAlternates } from "./seo/index.js";
