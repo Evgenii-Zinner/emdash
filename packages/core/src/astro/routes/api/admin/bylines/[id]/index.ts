@@ -48,6 +48,8 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
 		bio: body.bio ?? null,
 		avatarMediaId: body.avatarMediaId ?? null,
 		websiteUrl: body.websiteUrl ?? null,
+		jobTitle: body.jobTitle !== undefined ? body.jobTitle : undefined,
+		profileLinks: body.profileLinks,
 		userId: body.userId ?? null,
 		isGuest: body.isGuest,
 		// Forward `customFields` only when present so the repo treats an

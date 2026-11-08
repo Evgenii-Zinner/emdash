@@ -1,4 +1,5 @@
 import type { ContentFieldFilters } from "../../content-list-query.js";
+import type { ProfileLink } from "../../identity/types.js";
 import type { CustomFieldValue } from "../../schema/types.js";
 import { encodeBase64, decodeBase64 } from "../../utils/base64.js";
 
@@ -132,6 +133,10 @@ export interface BylineSummary {
 	 * byline's `translation_group`.
 	 */
 	customFields?: Record<string, CustomFieldValue>;
+	/** Professional job title. Added in Phase 1 of RFC #4765. */
+	jobTitle?: string | null;
+	/** Profile and social links. Added in Phase 1 of RFC #4765. */
+	profileLinks?: ProfileLink[] | null;
 }
 
 export interface ContentBylineCredit {

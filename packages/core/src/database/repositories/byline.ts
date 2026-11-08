@@ -9,6 +9,7 @@ import {
 	invalidateCollectionCache,
 } from "../../object-cache/index.js";
 import { clearRequestCacheEntry, peekRequestCache, requestCached } from "../../request-cache.js";
+import type { ProfileLink, ProfileLinkInput } from "../../identity/types.js";
 import type { BylineFieldDefinition, CustomFieldValue } from "../../schema/types.js";
 import { chunks, SQL_BATCH_SIZE } from "../../utils/chunks.js";
 import { listTablesLike } from "../dialect-helpers.js";
@@ -132,6 +133,10 @@ export interface CreateBylineInput {
 	 * before the row insert so a bad value can't leave a bare byline behind.
 	 */
 	customFields?: Record<string, unknown>;
+	/** Professional job title. Added in Phase 1 of RFC #4765. */
+	jobTitle?: string | null;
+	/** Profile and social links. Added in Phase 1 of RFC #4765. */
+	profileLinks?: (ProfileLink | ProfileLinkInput)[] | null;
 }
 
 export interface UpdateBylineInput {
@@ -160,11 +165,25 @@ export interface UpdateBylineInput {
 	 * retrying the same update produces the same DB state.
 	 */
 	customFields?: Record<string, unknown>;
+	/** Professional job title. Added in Phase 1 of RFC #4765. */
+	jobTitle?: string | null;
+	/** Profile and social links. Added in Phase 1 of RFC #4765. */
+	profileLinks?: (ProfileLink | ProfileLinkInput)[] | null;
 }
 
 export interface ContentBylineInput {
 	bylineId: string;
 	roleLabel?: string | null;
+}
+
+function parseProfileLinks(raw: string | null | undefined): ProfileLink[] | null {
+	if (!raw) return null;
+	try {
+		const parsed = JSON.parse(raw);
+		return Array.isArray(parsed) ? (parsed as ProfileLink[]) : [];
+	} catch {
+		return [];
+	}
 }
 
 function rowToByline(row: BylineRowWithAvatar): BylineSummary {
@@ -185,8 +204,12 @@ function rowToByline(row: BylineRowWithAvatar): BylineSummary {
 		updatedAt: row.updated_at,
 		locale: row.locale,
 		translationGroup: row.translation_group,
+		jobTitle: row.job_title ?? null,
+		profileLinks: parseProfileLinks(row.profile_links),
 	};
 }
+
+const rowToSummary = rowToByline;
 
 /**
  * Merge a single decoded value into a `BylineSummary.customFields` map.
@@ -822,6 +845,11 @@ export class BylineRepository {
 					is_guest: input.isGuest ? 1 : 0,
 					created_at: now,
 					updated_at: now,
+					job_title: input.jobTitle ?? null,
+					profile_links:
+						input.profileLinks !== undefined && input.profileLinks !== null
+							? JSON.stringify(input.profileLinks)
+							: null,
 					// Omit `locale` so the DB DEFAULT (configured defaultLocale)
 					// applies — matches TaxonomyRepository.create.
 					...(input.locale !== undefined ? { locale: input.locale } : {}),
@@ -868,6 +896,11 @@ export class BylineRepository {
 		if (input.websiteUrl !== undefined) updates.website_url = input.websiteUrl;
 		if (input.userId !== undefined) updates.user_id = input.userId;
 		if (input.isGuest !== undefined) updates.is_guest = input.isGuest ? 1 : 0;
+		if (input.jobTitle !== undefined) updates.job_title = input.jobTitle;
+		if (input.profileLinks !== undefined) {
+			updates.profile_links =
+				input.profileLinks !== null ? JSON.stringify(input.profileLinks) : null;
+		}
 
 		const group = existing.translationGroup ?? existing.id;
 		// Wrap row update + custom-field writes in one transaction so a
@@ -1020,6 +1053,8 @@ export class BylineRepository {
 				"b.updated_at as updated_at",
 				"b.locale as locale",
 				"b.translation_group as translation_group",
+				"b.job_title as job_title",
+				"b.profile_links as profile_links",
 			])
 			.where("cb.collection_slug", "=", collectionSlug)
 			.where("cb.content_id", "=", contentId)
@@ -1050,6 +1085,8 @@ export class BylineRepository {
 			updated_at: row.updated_at,
 			locale: row.locale,
 			translation_group: row.translation_group,
+			job_title: row.job_title,
+			profile_links: row.profile_links,
 		}));
 		const hydrated = await this.withCustomFields(bylineRows);
 		return rows.map((row, i) => {
@@ -1161,6 +1198,8 @@ export class BylineRepository {
 					"b.updated_at as updated_at",
 					"b.locale as locale",
 					"b.translation_group as translation_group",
+					"b.job_title as job_title",
+					"b.profile_links as profile_links",
 				])
 				.where("cb.collection_slug", "=", collectionSlug)
 				.where("cb.content_id", "in", chunk)
@@ -1188,6 +1227,8 @@ export class BylineRepository {
 				updated_at: row.updated_at,
 				locale: row.locale,
 				translation_group: row.translation_group,
+				job_title: row.job_title,
+				profile_links: row.profile_links,
 			}));
 
 			// When `skipHydration` is set, return BylineSummary objects with
@@ -1268,6 +1309,8 @@ export class BylineRepository {
 					"b.updated_at as updated_at",
 					"b.locale as locale",
 					"b.translation_group as translation_group",
+					"b.job_title as job_title",
+					"b.profile_links as profile_links",
 				])
 				.where("b.user_id", "in", chunk);
 			if (options?.locale !== undefined)

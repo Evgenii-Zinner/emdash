@@ -51,6 +51,57 @@ describe("BylineRepository", () => {
 		expect(foundByUser).toBeNull();
 	});
 
+	it("creates, updates, and hydrates jobTitle and profileLinks", async () => {
+		const links = [
+			{ id: "1", platform: "github", value: "https://github.com/alice", sameAs: true, relMe: true },
+			{ id: "2", platform: "x", value: "alice", sameAs: false, relMe: false },
+		];
+		const created = await bylineRepo.create({
+			slug: "alice-identity",
+			displayName: "Alice Identity",
+			jobTitle: "Staff Engineer",
+			profileLinks: links,
+		});
+
+		expect(created.jobTitle).toBe("Staff Engineer");
+		expect(created.profileLinks).toEqual(links);
+
+		const found = await bylineRepo.findById(created.id);
+		expect(found?.jobTitle).toBe("Staff Engineer");
+		expect(found?.profileLinks).toEqual(links);
+
+		const updated = await bylineRepo.update(created.id, {
+			jobTitle: "Principal Engineer",
+			profileLinks: [{ id: "1", platform: "github", value: "https://github.com/alice2", sameAs: true, relMe: true }],
+		});
+		expect(updated?.jobTitle).toBe("Principal Engineer");
+		expect(updated?.profileLinks).toHaveLength(1);
+
+		// Test Content hydration (getContentBylines & getContentBylinesMany)
+		const content = await contentRepo.create({
+			type: "post",
+			slug: "identity-post",
+			data: { title: "Identity Post" },
+		});
+		await bylineRepo.setContentBylines("post", content.id, [{ bylineId: created.id }]);
+
+		const hydrated = await bylineRepo.getContentBylines("post", content.id);
+		expect(hydrated[0]?.byline.jobTitle).toBe("Principal Engineer");
+		expect(hydrated[0]?.byline.profileLinks).toEqual(updated?.profileLinks);
+
+		const batchHydrated = await bylineRepo.getContentBylinesMany("post", [content.id]);
+		expect(batchHydrated.get(content.id)?.[0]?.byline.jobTitle).toBe("Principal Engineer");
+		expect(batchHydrated.get(content.id)?.[0]?.byline.profileLinks).toEqual(updated?.profileLinks);
+
+		// Test clearing profileLinks and jobTitle
+		const cleared = await bylineRepo.update(created.id, {
+			jobTitle: null,
+			profileLinks: null,
+		});
+		expect(cleared?.jobTitle).toBeNull();
+		expect(cleared?.profileLinks).toBeNull();
+	});
+
 	it("supports updates and paginated listing", async () => {
 		const alpha = await bylineRepo.create({
 			slug: "alpha",

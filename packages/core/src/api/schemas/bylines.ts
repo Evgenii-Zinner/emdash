@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { profileLinkSchema } from "../../identity/schemas.js";
 import { cursorPaginationQuery, httpUrl, localeCode } from "./common.js";
 
 /** Slug pattern: lowercase letters, digits, and hyphens; must start with a letter */
@@ -28,6 +29,8 @@ export const bylineSummarySchema = z
 		avatarBlurhash: z.string().nullish(),
 		avatarDominantColor: z.string().nullish(),
 		websiteUrl: z.string().nullable(),
+		jobTitle: z.string().nullable().optional(),
+		profileLinks: z.array(profileLinkSchema).optional(),
 		userId: z.string().nullable(),
 		isGuest: z.boolean(),
 		createdAt: z.string(),
@@ -95,6 +98,8 @@ export const bylineCreateBody = z
 		bio: z.string().nullish(),
 		avatarMediaId: z.string().nullish(),
 		websiteUrl: httpUrl.nullish(),
+		jobTitle: z.string().nullish(),
+		profileLinks: z.array(profileLinkSchema).optional(),
 		userId: z.string().nullish(),
 		isGuest: z.boolean().optional(),
 		/**
@@ -138,6 +143,8 @@ export const bylineTranslationCreateBody = z
 		bio: z.string().nullish(),
 		avatarMediaId: z.string().nullish(),
 		websiteUrl: httpUrl.nullish(),
+		jobTitle: z.string().nullish(),
+		profileLinks: z.array(profileLinkSchema).optional(),
 	})
 	.meta({ id: "BylineTranslationCreateBody" });
 
@@ -158,6 +165,8 @@ export const bylineUpdateBody = z
 		bio: z.string().nullish(),
 		avatarMediaId: z.string().nullish(),
 		websiteUrl: httpUrl.nullish(),
+		jobTitle: z.string().nullish(),
+		profileLinks: z.array(profileLinkSchema).optional(),
 		userId: z.string().nullish(),
 		isGuest: z.boolean().optional(),
 		/**
