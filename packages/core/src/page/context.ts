@@ -6,6 +6,7 @@
  */
 
 import type { BreadcrumbItem, PublicPageContext } from "../plugins/types.js";
+import type { ProfileLink } from "../identity/types.js";
 
 /** Fields shared by both input forms */
 interface PageContextFields {
@@ -30,6 +31,28 @@ interface PageContextFields {
 		modifiedTime?: string | null;
 		author?: string | null;
 	};
+	/** Author or byline for author archive pages (RFC #4765 Phase 1) */
+	author?:
+		| {
+				profileLinks?: ProfileLink[];
+				[key: string]: unknown;
+		  }
+		| Array<{
+				profileLinks?: ProfileLink[];
+				[key: string]: unknown;
+		  }>
+		| null;
+	/** Byline information for author archive pages (RFC #4765 Phase 1) */
+	byline?:
+		| {
+				profileLinks?: ProfileLink[];
+				[key: string]: unknown;
+		  }
+		| Array<{
+				profileLinks?: ProfileLink[];
+				[key: string]: unknown;
+		  }>
+		| null;
 	/** Site name for structured data and og:site_name */
 	siteName?: string;
 	/**
@@ -98,6 +121,8 @@ export function createPublicPageContext(input: CreatePublicPageContextInput): Pu
 			: undefined,
 		seo: input.seo,
 		articleMeta: input.articleMeta,
+		author: input.author,
+		byline: input.byline,
 		siteName: input.siteName,
 		breadcrumbs: input.breadcrumbs,
 		siteUrl: input.siteUrl,

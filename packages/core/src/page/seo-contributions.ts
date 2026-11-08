@@ -18,7 +18,8 @@ import type { ContentSeo } from "../database/repositories/types.js";
 import type { PageMetadataContribution, PublicPageContext } from "../plugins/types.js";
 import { buildSeoImageUrl, resolveSeoCanonicalUrl } from "../seo/media-url.js";
 import { getSiteSettings } from "../settings/index.js";
-import type { SeoSettings, SocialLink } from "../settings/types.js";
+import type { ProfileLink, SeoSettings, SiteIdentity, SocialLink } from "../settings/types.js";
+import { resolveProfileUrl } from "../identity/index.js";
 import { buildBlogPostingJsonLd, buildWebSiteJsonLd } from "./jsonld.js";
 import { peekSeoPanel } from "./seo-panel.js";
 
@@ -152,6 +153,13 @@ export function generateBaseSeoContributions(
 		}
 	}
 
+	// -- Author archive profile links (RFC #4765 Phase 1) --
+
+	const authorContributions = generateAuthorSocialContributions(page);
+	if (authorContributions.length > 0) {
+		contributions.push(...authorContributions);
+	}
+
 	return contributions;
 }
 
@@ -261,32 +269,126 @@ export function generateSiteSeoContributions(
 }
 
 /**
- * Generate site-level social metadata contributions from SiteSettings.socialLinks.
+ * Generate site-level social metadata contributions from SiteIdentity or SiteSettings.socialLinks.
  *
- * Emits `<link rel="me" href="...">` for configured social links that have
- * identity verification enabled (`relMe: true`), allowing platforms like Mastodon,
- * GitHub, Bluesky, etc. to verify profile ownership.
+ * Emits `<link rel="me" href="...">` for configured profile links that have
+ * identity verification enabled (`relMe: true`) and resolve to an https URL
+ * via `resolveProfileUrl`.
+ * When `site:identity` is not set, falls back to `settings.socialLinks`.
  */
 export function generateSiteSocialContributions(
-	socialLinks?: SocialLink[],
+	identityOrSocialLinks?: SiteIdentity | SocialLink[] | null,
+	fallbackSocialLinks?: SocialLink[] | null,
 ): PageMetadataContribution[] {
 	const contributions: PageMetadataContribution[] = [];
 
-	if (!socialLinks || !Array.isArray(socialLinks)) {
+	let identity: SiteIdentity | undefined;
+	let socialLinks: SocialLink[] | undefined;
+
+	if (Array.isArray(identityOrSocialLinks)) {
+		socialLinks = identityOrSocialLinks;
+	} else if (identityOrSocialLinks && typeof identityOrSocialLinks === "object") {
+		identity = identityOrSocialLinks;
+		socialLinks = fallbackSocialLinks ?? undefined;
+	} else if (Array.isArray(fallbackSocialLinks)) {
+		socialLinks = fallbackSocialLinks;
+	}
+
+	if (identity?.links && Array.isArray(identity.links)) {
+		for (const link of identity.links) {
+			if (link && link.relMe === true && typeof link.value === "string") {
+				const resolved = resolveProfileUrl(link.platform ?? "custom", link.value);
+				if (resolved && /^https:\/\//i.test(resolved)) {
+					contributions.push({
+						kind: "link",
+						rel: "me",
+						href: resolved,
+					});
+				}
+			}
+		}
 		return contributions;
 	}
 
-	for (const link of socialLinks) {
-		if (
-			link.relMe === true &&
-			typeof link.url === "string" &&
-			/^https?:\/\//i.test(link.url.trim())
-		) {
-			contributions.push({
-				kind: "link",
-				rel: "me",
-				href: link.url.trim(),
-			});
+	if (socialLinks && Array.isArray(socialLinks)) {
+		for (const link of socialLinks) {
+			if (
+				link.relMe === true &&
+				typeof link.url === "string" &&
+				/^https?:\/\//i.test(link.url.trim())
+			) {
+				contributions.push({
+					kind: "link",
+					rel: "me",
+					href: link.url.trim(),
+				});
+			}
+		}
+	}
+
+	return contributions;
+}
+
+/**
+ * Generate author-level social metadata contributions from author or byline profile links.
+ *
+ * For author archive pages, emits `<link rel="me" href="...">` for the author's
+ * verified byline links (where `link.relMe === true` and the value resolves to
+ * an https URL via `resolveProfileUrl`).
+ */
+export function generateAuthorSocialContributions(
+	authorOrByline?: unknown,
+): PageMetadataContribution[] {
+	const contributions: PageMetadataContribution[] = [];
+	if (!authorOrByline || typeof authorOrByline !== "object") {
+		return contributions;
+	}
+
+	const raw = authorOrByline as Record<string, unknown>;
+	const candidates: unknown[] = [];
+
+	if (Array.isArray(raw.profileLinks)) {
+		candidates.push(raw);
+	}
+	if (Array.isArray(raw.author)) {
+		candidates.push(...raw.author);
+	} else if (raw.author && typeof raw.author === "object") {
+		candidates.push(raw.author);
+	}
+	if (Array.isArray(raw.byline)) {
+		candidates.push(...raw.byline);
+	} else if (raw.byline && typeof raw.byline === "object") {
+		candidates.push(raw.byline);
+	}
+
+	const seenUrls = new Set<string>();
+
+	for (const candidate of candidates) {
+		const c = candidate as { profileLinks?: ProfileLink[]; byline?: { profileLinks?: ProfileLink[] } };
+		const links = Array.isArray(c.profileLinks)
+			? c.profileLinks
+			: Array.isArray(c.byline?.profileLinks)
+				? c.byline.profileLinks
+				: [];
+
+		for (const link of links) {
+			if (link && link.relMe === true) {
+				const rawVal =
+					typeof link.value === "string"
+						? link.value
+						: (link as unknown as { url?: string }).url;
+				if (typeof rawVal === "string" && rawVal.trim()) {
+					const resolved = resolveProfileUrl(link.platform ?? "custom", rawVal);
+					if (resolved && /^https:\/\//i.test(resolved) && !seenUrls.has(resolved)) {
+						seenUrls.add(resolved);
+						contributions.push({
+							kind: "link",
+							rel: "me",
+							href: resolved,
+						});
+					}
+				}
+			}
 		}
 	}
 

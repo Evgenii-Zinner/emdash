@@ -29,11 +29,15 @@ function runtimeWithPluginMetadata(contributions: PageMetadataContribution[]) {
 	};
 }
 
-async function render(settings: Partial<SiteSettings>, emdash?: unknown) {
+async function render(
+	settings: Partial<SiteSettings>,
+	emdash?: unknown,
+	pageOverride?: Partial<PublicPageContext>,
+) {
 	vi.mocked(getSiteSettings).mockResolvedValue(settings);
 	const container = await AstroContainer.create();
 	return container.renderToString(EmDashHead, {
-		props: { page },
+		props: { page: pageOverride ? { ...page, ...pageOverride } : page },
 		locals: emdash ? { emdash } : {},
 	});
 }
@@ -132,5 +136,112 @@ describe("EmDashHead", () => {
 
 		expect(html).not.toContain('rel="me"');
 		expect(html).not.toContain('"sameAs"');
+	});
+
+	it("renders rel=\"me\" links from site:identity.links for verified links", async () => {
+		const html = await render(
+			{
+				identity: {
+					type: "Organization",
+					name: "Acme Corp",
+					links: [
+						{
+							id: "gh",
+							platform: "github",
+							value: "acme",
+							relMe: true,
+							sameAs: true,
+						},
+						{
+							id: "bsky",
+							platform: "bluesky",
+							value: "acme.bsky.social",
+							relMe: true,
+							sameAs: true,
+						},
+						{
+							id: "unverified",
+							platform: "twitter",
+							value: "acme",
+							relMe: false,
+							sameAs: true,
+						},
+					],
+				},
+			},
+			runtimeWithPluginMetadata([]),
+		);
+
+		expect(html).toContain('<link rel="me" href="https://github.com/acme">');
+		expect(html).toContain('<link rel="me" href="https://bsky.app/profile/acme.bsky.social">');
+		expect(html).not.toContain('https://x.com/acme');
+	});
+
+	it("renders author rel=\"me\" links on author archive pages", async () => {
+		const html = await render(
+			{
+				identity: {
+					type: "Organization",
+					links: [
+						{
+							id: "site-gh",
+							platform: "github",
+							value: "acme-site",
+							relMe: true,
+							sameAs: true,
+						},
+					],
+				},
+			},
+			runtimeWithPluginMetadata([]),
+			{
+				pageType: "author",
+				author: {
+					profileLinks: [
+						{
+							id: "author-gh",
+							platform: "github",
+							value: "alice-dev",
+							relMe: true,
+							sameAs: true,
+						},
+						{
+							id: "author-tw",
+							platform: "twitter",
+							value: "alice-dev",
+							relMe: false,
+							sameAs: true,
+						},
+					],
+				},
+			},
+		);
+
+		expect(html).toContain('<link rel="me" href="https://github.com/acme-site">');
+		expect(html).toContain('<link rel="me" href="https://github.com/alice-dev">');
+		expect(html).not.toContain('https://x.com/alice-dev');
+	});
+
+	it("renders byline rel=\"me\" links when page.byline is used on author pages", async () => {
+		const html = await render(
+			{},
+			runtimeWithPluginMetadata([]),
+			{
+				pageType: "author",
+				byline: {
+					profileLinks: [
+						{
+							id: "author-masto",
+							platform: "mastodon",
+							value: "https://mastodon.social/@carol",
+							relMe: true,
+							sameAs: true,
+						},
+					],
+				},
+			},
+		);
+
+		expect(html).toContain('<link rel="me" href="https://mastodon.social/@carol">');
 	});
 });

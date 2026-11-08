@@ -19,6 +19,7 @@ const VALID_LINK_REL = new Set([
 	"alternate",
 	"author",
 	"license",
+	"me",
 	"nlweb",
 	"site.standard.document",
 ]);

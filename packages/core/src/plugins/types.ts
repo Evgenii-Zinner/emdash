@@ -11,6 +11,7 @@
 
 import type { Permission } from "@emdash-cms/auth";
 import type { ConfirmDialog, Element, PluginUiContext } from "@emdash-cms/blocks";
+import type { ProfileLink } from "../identity/types.js";
 // The plugin capability vocabulary, the legacy-rename map, and the manifest
 // shape are authored once in @emdash-cms/plugin-types and shared between core
 // (the manifest reader at install/runtime) and @emdash-cms/plugin-cli (the
@@ -1666,6 +1667,32 @@ export interface PublicPageContext {
 		modifiedTime?: string | null;
 		author?: string | null;
 	};
+	/**
+	 * Author or byline for author archive pages (RFC #4765 Phase 1).
+	 */
+	author?:
+		| {
+				profileLinks?: ProfileLink[];
+				[key: string]: unknown;
+		  }
+		| Array<{
+				profileLinks?: ProfileLink[];
+				[key: string]: unknown;
+		  }>
+		| null;
+	/**
+	 * Byline information for author archive pages (RFC #4765 Phase 1).
+	 */
+	byline?:
+		| {
+				profileLinks?: ProfileLink[];
+				[key: string]: unknown;
+		  }
+		| Array<{
+				profileLinks?: ProfileLink[];
+				[key: string]: unknown;
+		  }>
+		| null;
 	/** Site name for structured data and og:site_name */
 	siteName?: string;
 	/**

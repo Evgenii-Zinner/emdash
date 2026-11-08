@@ -16,8 +16,10 @@ import type { ContentSeo } from "../../../src/database/repositories/types.js";
 import { buildBlogPostingJsonLd } from "../../../src/page/jsonld.js";
 import {
 	applySeoPanelToPageContext,
+	generateAuthorSocialContributions,
 	generateBaseSeoContributions,
 	generateSiteSeoContributions,
+	generateSiteSocialContributions,
 } from "../../../src/page/seo-contributions.js";
 import { peekSeoPanel, primeSeoPanel } from "../../../src/page/seo-panel.js";
 import type { PublicPageContext } from "../../../src/plugins/types.js";
@@ -93,6 +95,164 @@ describe("generateSiteSeoContributions", () => {
 		});
 
 		expect(result).toEqual([]);
+	});
+});
+
+describe("generateSiteSocialContributions", () => {
+	it("returns empty array when neither identity nor socialLinks provided", () => {
+		expect(generateSiteSocialContributions(undefined)).toEqual([]);
+		expect(generateSiteSocialContributions(null)).toEqual([]);
+	});
+
+	it("emits rel=\"me\" links from site:identity.links for verified links", () => {
+		const identity = {
+			type: "Organization" as const,
+			name: "Test Org",
+			links: [
+				{
+					id: "gh",
+					platform: "github",
+					value: "emdash-cms",
+					relMe: true,
+					sameAs: true,
+				},
+				{
+					id: "masto",
+					platform: "mastodon",
+					value: "https://mastodon.social/@emdash",
+					relMe: true,
+					sameAs: true,
+				},
+				{
+					id: "tw",
+					platform: "twitter",
+					value: "@emdash",
+					relMe: false,
+					sameAs: true,
+				},
+				{
+					id: "insecure",
+					platform: "custom",
+					value: "http://example.com/insecure",
+					relMe: true,
+					sameAs: true,
+				},
+			],
+		};
+
+		const result = generateSiteSocialContributions(identity);
+
+		expect(result).toEqual([
+			{ kind: "link", rel: "me", href: "https://github.com/emdash-cms" },
+			{ kind: "link", rel: "me", href: "https://mastodon.social/@emdash" },
+		]);
+	});
+
+	it("falls back to settings.socialLinks when site:identity is not set", () => {
+		const socialLinks = [
+			{
+				id: "gh",
+				platform: "github",
+				label: "GitHub",
+				url: "https://github.com/emdash-cms",
+				relMe: true,
+			},
+			{
+				id: "unverified",
+				label: "Other",
+				url: "https://example.com/other",
+				relMe: false,
+			},
+		];
+
+		const result = generateSiteSocialContributions(undefined, socialLinks);
+
+		expect(result).toEqual([
+			{ kind: "link", rel: "me", href: "https://github.com/emdash-cms" },
+		]);
+	});
+
+	it("does not fall back to socialLinks when site:identity is explicitly set with empty links", () => {
+		const identity = {
+			type: "Organization" as const,
+			links: [],
+		};
+		const fallbackSocial = [
+			{
+				id: "gh",
+				url: "https://github.com/emdash-cms",
+				relMe: true,
+			},
+		];
+
+		const result = generateSiteSocialContributions(identity, fallbackSocial);
+		expect(result).toEqual([]);
+	});
+});
+
+describe("generateAuthorSocialContributions", () => {
+	it("returns empty array when author/byline is missing or has no profileLinks", () => {
+		expect(generateAuthorSocialContributions(undefined)).toEqual([]);
+		expect(generateAuthorSocialContributions(null)).toEqual([]);
+		expect(generateAuthorSocialContributions({})).toEqual([]);
+		expect(generateAuthorSocialContributions({ author: null })).toEqual([]);
+	});
+
+	it("emits rel=\"me\" links for verified author byline links", () => {
+		const author = {
+			displayName: "Jane Doe",
+			profileLinks: [
+				{
+					id: "gh",
+					platform: "github",
+					value: "janedoe",
+					relMe: true,
+					sameAs: true,
+				},
+				{
+					id: "unverified",
+					platform: "twitter",
+					value: "janedoe",
+					relMe: false,
+					sameAs: true,
+				},
+				{
+					id: "http-only",
+					platform: "custom",
+					value: "http://janedoe.com",
+					relMe: true,
+					sameAs: true,
+				},
+			],
+		};
+
+		const result = generateAuthorSocialContributions({ author });
+
+		expect(result).toEqual([
+			{ kind: "link", rel: "me", href: "https://github.com/janedoe" },
+		]);
+	});
+
+	it("supports byline directly or nested in author", () => {
+		const byline = {
+			displayName: "John Smith",
+			profileLinks: [
+				{
+					id: "bsky",
+					platform: "bluesky",
+					value: "johnsmith.bsky.social",
+					relMe: true,
+					sameAs: true,
+				},
+			],
+		};
+
+		expect(generateAuthorSocialContributions({ byline })).toEqual([
+			{ kind: "link", rel: "me", href: "https://bsky.app/profile/johnsmith.bsky.social" },
+		]);
+		expect(generateAuthorSocialContributions(byline)).toEqual([
+			{ kind: "link", rel: "me", href: "https://bsky.app/profile/johnsmith.bsky.social" },
+		]);
 	});
 });
 
