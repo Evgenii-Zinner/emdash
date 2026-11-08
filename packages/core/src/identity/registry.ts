@@ -40,13 +40,7 @@ const PLATFORMS: Record<string, PlatformDefinition> = {
 		displayName: "X (Twitter)",
 		iconName: "twitter",
 		placeholder: "@username or https://x.com/username",
-		buildProfileUrl: (raw: string) => {
-			const trimmed = raw.trim();
-			if (!trimmed) return null;
-			if (HTTP_URL_RE.test(trimmed)) return trimmed;
-			const handle = trimmed.replace(LEADING_AT_RE, "");
-			return handle ? `https://x.com/${encodeURIComponent(handle)}` : null;
-		},
+		buildProfileUrl: patternUrlBuilder("https://x.com/{handle}"),
 		extractHandle: (urlStr: string) => {
 			const trimmed = urlStr.trim();
 			if (!trimmed) return null;
@@ -73,13 +67,7 @@ const PLATFORMS: Record<string, PlatformDefinition> = {
 		displayName: "GitHub",
 		iconName: "github",
 		placeholder: "username or https://github.com/username",
-		buildProfileUrl: (raw: string) => {
-			const trimmed = raw.trim();
-			if (!trimmed) return null;
-			if (HTTP_URL_RE.test(trimmed)) return trimmed;
-			const handle = trimmed.replace(LEADING_AT_RE, "");
-			return handle ? `https://github.com/${encodeURIComponent(handle)}` : null;
-		},
+		buildProfileUrl: patternUrlBuilder("https://github.com/{handle}"),
 		extractHandle: (urlStr: string) => {
 			try {
 				const parsed = new URL(urlStr);
@@ -97,13 +85,7 @@ const PLATFORMS: Record<string, PlatformDefinition> = {
 		displayName: "Facebook",
 		iconName: "facebook",
 		placeholder: "username or https://facebook.com/username",
-		buildProfileUrl: (raw: string) => {
-			const trimmed = raw.trim();
-			if (!trimmed) return null;
-			if (HTTP_URL_RE.test(trimmed)) return trimmed;
-			const handle = trimmed.replace(LEADING_AT_RE, "");
-			return handle ? `https://facebook.com/${encodeURIComponent(handle)}` : null;
-		},
+		buildProfileUrl: patternUrlBuilder("https://facebook.com/{handle}"),
 		extractHandle: (urlStr: string) => {
 			try {
 				const parsed = new URL(urlStr);
@@ -121,13 +103,7 @@ const PLATFORMS: Record<string, PlatformDefinition> = {
 		displayName: "Instagram",
 		iconName: "instagram",
 		placeholder: "@username or https://instagram.com/username",
-		buildProfileUrl: (raw: string) => {
-			const trimmed = raw.trim();
-			if (!trimmed) return null;
-			if (HTTP_URL_RE.test(trimmed)) return trimmed;
-			const handle = trimmed.replace(LEADING_AT_RE, "");
-			return handle ? `https://instagram.com/${encodeURIComponent(handle)}` : null;
-		},
+		buildProfileUrl: patternUrlBuilder("https://instagram.com/{handle}"),
 		extractHandle: (urlStr: string) => {
 			try {
 				const parsed = new URL(urlStr);
