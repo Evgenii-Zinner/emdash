@@ -13,6 +13,7 @@ import {
 	type UserListItem,
 } from "../lib/api";
 import { listBylineFields, type BylineFieldDefinition } from "../lib/api/byline-fields.js";
+import type { ProfileLink } from "../lib/api/settings.js";
 import { guardUnsavedInput, useSingleFlight } from "../lib/dialog-form.js";
 import { isSafeUrl } from "../lib/url.js";
 import { BylineAvatarField } from "./BylineAvatarField.js";
@@ -20,6 +21,7 @@ import { DialogError, getMutationError } from "./DialogError.js";
 import { DialogSection } from "./DialogSection.js";
 import { HelpLabel } from "./FieldHelpLabel.js";
 import { OptionalLabel } from "./OptionalLabel.js";
+import { ProfileLinksEditor } from "./settings/ProfileLinksEditor.js";
 
 const BYLINE_SLUG_PATTERN = /^[a-z][a-z0-9-]*$/;
 const BYLINE_SLUG_MAX_LENGTH = 80;
@@ -61,8 +63,10 @@ export type BylineFormValues = Omit<BylineInput, "locale" | "translationOf">;
 interface BylineFormState {
 	slug: string;
 	displayName: string;
+	jobTitle: string;
 	bio: string;
 	websiteUrl: string;
+	profileLinks: ProfileLink[];
 	userId: string | null;
 	isGuest: boolean;
 	avatarMediaId: string | null;
@@ -84,8 +88,10 @@ function toFormState(byline?: BylineSummary | null): BylineFormState {
 		return {
 			slug: "",
 			displayName: "",
+			jobTitle: "",
 			bio: "",
 			websiteUrl: "",
+			profileLinks: [],
 			userId: null,
 			isGuest: false,
 			avatarMediaId: null,
@@ -96,8 +102,10 @@ function toFormState(byline?: BylineSummary | null): BylineFormState {
 	return {
 		slug: byline.slug,
 		displayName: byline.displayName,
+		jobTitle: byline.jobTitle ?? "",
 		bio: byline.bio ?? "",
 		websiteUrl: byline.websiteUrl ?? "",
+		profileLinks: byline.profileLinks ?? [],
 		userId: byline.userId,
 		isGuest: byline.isGuest,
 		avatarMediaId: byline.avatarMediaId ?? null,
@@ -139,8 +147,10 @@ function rebaseFormState(
 	return {
 		slug: pick("slug"),
 		displayName: pick("displayName"),
+		jobTitle: pick("jobTitle"),
 		bio: pick("bio"),
 		websiteUrl: pick("websiteUrl"),
+		profileLinks: pick("profileLinks"),
 		userId: attributionEdited ? form.userId : latest.userId,
 		isGuest: attributionEdited ? form.isGuest : latest.isGuest,
 		avatarMediaId: pick("avatarMediaId"),
@@ -355,6 +365,12 @@ export function BylineFormDialog({
 			isGuest: form.isGuest,
 			avatarMediaId: form.avatarMediaId,
 		};
+		if (form.jobTitle?.trim()) {
+			values.jobTitle = form.jobTitle.trim();
+		}
+		if (form.profileLinks && form.profileLinks.length > 0) {
+			values.profileLinks = form.profileLinks;
+		}
 		// Without field definitions the custom-field inputs aren't shown, so
 		// leave stored values untouched rather than echoing them back. A new
 		// byline only sends custom fields that were filled in.
@@ -438,6 +454,17 @@ export function BylineFormDialog({
 								aria-invalid={!!formErrors.slug || undefined}
 								required
 							/>
+							{!customFieldDefs.some((f) => f.slug === "job_title") && (
+								<Input
+									label={<OptionalLabel>{t`Job title`}</OptionalLabel>}
+									placeholder={t`e.g. Staff Writer, Photographer`}
+									value={form.jobTitle}
+									onChange={(e) => {
+										const jobTitle = e.target.value;
+										setForm((prev) => ({ ...prev, jobTitle }));
+									}}
+								/>
+							)}
 							<Input
 								ref={websiteUrlRef}
 								type="url"
@@ -463,6 +490,15 @@ export function BylineFormDialog({
 								value={form.avatarMediaId}
 								onChange={(mediaId) => setForm((prev) => ({ ...prev, avatarMediaId: mediaId }))}
 							/>
+							<DialogSection
+								title={t`Profile links`}
+								help={t`Social and external profiles for author identity and verification (rel="me").`}
+							>
+								<ProfileLinksEditor
+									links={form.profileLinks}
+									onChange={(links) => setForm((prev) => ({ ...prev, profileLinks: links }))}
+								/>
+							</DialogSection>
 							<DialogSection
 								title={t`Attribution`}
 								help={t`Link this byline to a user or mark it as a guest profile.`}

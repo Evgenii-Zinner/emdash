@@ -8,6 +8,7 @@ import {
 	throwResponseError,
 	type FindManyResult,
 } from "./client.js";
+import type { ProfileLink } from "./settings.js";
 
 /**
  * Runtime value type for a byline custom field (Discussion #1174).
@@ -24,6 +25,8 @@ export interface BylineSummary {
 	bio: string | null;
 	avatarMediaId: string | null;
 	websiteUrl: string | null;
+	jobTitle?: string | null;
+	profileLinks?: ProfileLink[];
 	userId: string | null;
 	isGuest: boolean;
 	createdAt: string;
@@ -50,6 +53,8 @@ export interface BylineInput {
 	bio?: string | null;
 	avatarMediaId?: string | null;
 	websiteUrl?: string | null;
+	jobTitle?: string | null;
+	profileLinks?: ProfileLink[];
 	userId?: string | null;
 	isGuest?: boolean;
 	/**
@@ -82,6 +87,8 @@ export interface BylineTranslationInput {
 	bio?: string | null;
 	avatarMediaId?: string | null;
 	websiteUrl?: string | null;
+	jobTitle?: string | null;
+	profileLinks?: ProfileLink[];
 }
 
 export interface BylineCreditInput {

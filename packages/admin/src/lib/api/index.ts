@@ -141,6 +141,11 @@ export {
 
 // Settings
 export {
+	type SiteIdentity,
+	type ProfileLink,
+	type PostalAddress,
+	type OrganizationIdentifier,
+	type OrganizationPolicies,
 	type SiteSettings,
 	type SocialLink,
 	type SiteSettingsUpdate,

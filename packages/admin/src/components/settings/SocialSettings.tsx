@@ -4,26 +4,42 @@
  * Dynamic social and profile links with optional rel="me" identity verification.
  */
 
-import { Banner, Button, Input, Loader, Switch, useKumoToastManager } from "@cloudflare/kumo";
+import { Banner, Button, Input, Loader, Select, Switch, useKumoToastManager } from "@cloudflare/kumo";
 import { useLingui } from "@lingui/react/macro";
-import { Plus, Trash } from "@phosphor-icons/react";
+import { CaretDown, Plus, Trash } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 
-import { fetchSettings, updateSettings, type SiteSettings, type SocialLink } from "../../lib/api";
+import {
+	fetchSettings,
+	updateSettings,
+	type SiteIdentity,
+	type SiteSettings,
+	type SocialLink,
+} from "../../lib/api";
 import { SaveButton } from "../SaveButton.js";
 import { SettingRow, SettingsFrame, SettingsSection } from "./SettingsLayout.js";
 
-function socialSettingsSnapshot(settings: Partial<SiteSettings>) {
-	return JSON.stringify(
-		(settings.socialLinks ?? []).map((l) => ({
+interface FormState {
+	socialLinks?: SocialLink[];
+	identity?: SiteIdentity;
+}
+
+function socialSettingsSnapshot(formData: FormState) {
+	return JSON.stringify({
+		links: (formData.socialLinks ?? []).map((l) => ({
 			id: l.id,
 			platform: l.platform ?? "",
 			label: l.label,
 			url: l.url,
 			relMe: l.relMe ?? false,
 		})),
-	);
+		type: formData.identity?.type ?? "Organization",
+		name: formData.identity?.name ?? "",
+		alternateName: formData.identity?.alternateName ?? "",
+		address: formData.identity?.address ?? {},
+		policies: formData.identity?.policies ?? {},
+	});
 }
 
 export function SocialSettings() {
@@ -41,8 +57,8 @@ export function SocialSettings() {
 		staleTime: Infinity,
 	});
 
-	const [formData, setFormData] = React.useState<{ socialLinks?: SocialLink[] }>({});
-	const [savedFormData, setSavedFormData] = React.useState<{ socialLinks?: SocialLink[] }>({});
+	const [formData, setFormData] = React.useState<FormState>({});
+	const [savedFormData, setSavedFormData] = React.useState<FormState>({});
 	const [errors, setErrors] = React.useState<
 		Record<number, { label?: string; url?: string }>
 	>({});
@@ -50,7 +66,10 @@ export function SocialSettings() {
 	React.useEffect(() => {
 		if (settings) {
 			const links = settings.socialLinks ?? [];
-			const normalized = { socialLinks: links };
+			const normalized: FormState = {
+				socialLinks: links,
+				identity: settings.identity ?? { type: "Organization" },
+			};
 			setFormData(normalized);
 			setSavedFormData(normalized);
 			setErrors({});
@@ -63,8 +82,15 @@ export function SocialSettings() {
 	);
 
 	const saveMutation = useMutation({
-		mutationFn: (data: { socialLinks?: SocialLink[] }) =>
-			updateSettings({ socialLinks: data.socialLinks }),
+		mutationFn: (data: FormState) => {
+			const payload: { socialLinks?: SocialLink[]; identity?: SiteIdentity } = {
+				socialLinks: data.socialLinks,
+			};
+			if (data.identity) {
+				payload.identity = data.identity;
+			}
+			return updateSettings(payload);
+		},
 		onSuccess: (_savedSettings, submittedSettings) => {
 			setSavedFormData(submittedSettings);
 			void queryClient.invalidateQueries({ queryKey: ["settings"] });
@@ -98,7 +124,7 @@ export function SocialSettings() {
 
 			let rowError: { label?: string; url?: string } | null = null;
 			if (!hasLabel) {
-				rowError = { ...rowError, label: t`Label is required` };
+				rowError = { label: t`Label is required` };
 			}
 			if (!hasUrl) {
 				rowError = { ...rowError, url: t`URL is required` };
@@ -122,9 +148,38 @@ export function SocialSettings() {
 			return;
 		}
 
+		const identityLinks = cleanedLinks.map((l) => ({
+			id: l.id,
+			platform: l.platform || l.label.toLowerCase().replace(/[^a-z0-9]/g, ""),
+			value: l.url,
+			sameAs: true,
+			relMe: l.relMe ?? false,
+		}));
+
+		const hasCustomIdentity = Boolean(
+			settings?.identity ||
+				formData.identity?.name ||
+				formData.identity?.alternateName ||
+				(formData.identity?.type && formData.identity.type !== "Organization") ||
+				formData.identity?.address?.streetAddress ||
+				formData.identity?.policies?.publishingPrinciples,
+		);
+
+		const submittedState: FormState = {
+			socialLinks: cleanedLinks,
+			...(hasCustomIdentity
+				? {
+						identity: {
+							...(formData.identity ?? { type: "Organization" }),
+							links: identityLinks,
+						},
+					}
+				: {}),
+		};
+
 		setErrors({});
-		setFormData({ socialLinks: cleanedLinks });
-		saveMutation.mutate({ socialLinks: cleanedLinks });
+		setFormData((prev) => ({ ...prev, ...submittedState }));
+		saveMutation.mutate(submittedState);
 	};
 
 	const handleAddLink = () => {
@@ -235,6 +290,45 @@ export function SocialSettings() {
 				className="grid gap-8"
 			>
 				<SettingsSection
+					title={t`Publisher Identity`}
+					description={t`Define whether this site represents an Organization or a Person for structured data.`}
+				>
+					<SettingRow className="grid gap-4 sm:grid-cols-2">
+						<Select
+							label={t`Publisher Type`}
+							value={formData.identity?.type ?? "Organization"}
+							onValueChange={(val) =>
+								setFormData((prev) => ({
+									...prev,
+									identity: {
+										...(prev.identity ?? { type: "Organization" }),
+										type: val as "Organization" | "Person",
+									},
+								}))
+							}
+							items={{
+								Organization: t`Organization (Business, Brand, Company)`,
+								Person: t`Person (Individual, Creator, Portfolio)`,
+							}}
+						/>
+						<Input
+							label={t`Publisher Name (optional)`}
+							placeholder={t`Defaults to site title`}
+							value={formData.identity?.name ?? ""}
+							onChange={(e) =>
+								setFormData((prev) => ({
+									...prev,
+									identity: {
+										...(prev.identity ?? { type: "Organization" }),
+										name: e.target.value,
+									},
+								}))
+							}
+						/>
+					</SettingRow>
+				</SettingsSection>
+
+				<SettingsSection
 					title={t`Profiles & Links`}
 					description={t`Add your social media profiles and links. Enable identity verification (rel="me") to verify ownership on platforms like Mastodon, Bluesky, and GitHub.`}
 					actions={
@@ -323,6 +417,132 @@ export function SocialSettings() {
 						))
 					)}
 				</SettingsSection>
+
+				<details className="group rounded-xl border border-kumo-line bg-kumo-base p-4">
+					<summary className="flex cursor-pointer select-none items-center justify-between font-medium text-kumo-strong">
+						<span>{t`Advanced Identity (Structured Data)`}</span>
+						<CaretDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+					</summary>
+					<div className="mt-4 grid gap-6 pt-2 text-sm">
+						<div>
+							<h3 className="font-semibold text-kumo-strong">{t`Postal Address`}</h3>
+							<div className="mt-2 grid gap-3 sm:grid-cols-2">
+								<Input
+									label={t`Street Address`}
+									placeholder={t`123 Main St`}
+									value={formData.identity?.address?.streetAddress ?? ""}
+									onChange={(e) =>
+										setFormData((prev) => ({
+											...prev,
+											identity: {
+												...(prev.identity ?? { type: "Organization" }),
+												address: {
+													...prev.identity?.address,
+													streetAddress: e.target.value,
+												},
+											},
+										}))
+									}
+								/>
+								<Input
+									label={t`Locality / City`}
+									placeholder={t`City`}
+									value={formData.identity?.address?.addressLocality ?? ""}
+									onChange={(e) =>
+										setFormData((prev) => ({
+											...prev,
+											identity: {
+												...(prev.identity ?? { type: "Organization" }),
+												address: {
+													...prev.identity?.address,
+													addressLocality: e.target.value,
+												},
+											},
+										}))
+									}
+								/>
+								<Input
+									label={t`Postal Code`}
+									placeholder={t`ZIP or Postcode`}
+									value={formData.identity?.address?.postalCode ?? ""}
+									onChange={(e) =>
+										setFormData((prev) => ({
+											...prev,
+											identity: {
+												...(prev.identity ?? { type: "Organization" }),
+												address: {
+													...prev.identity?.address,
+													postalCode: e.target.value,
+												},
+											},
+										}))
+									}
+								/>
+								<Input
+									label={t`Country Code`}
+									placeholder={t`e.g. US, GB, DE`}
+									value={formData.identity?.address?.addressCountry ?? ""}
+									onChange={(e) =>
+										setFormData((prev) => ({
+											...prev,
+											identity: {
+												...(prev.identity ?? { type: "Organization" }),
+												address: {
+													...prev.identity?.address,
+													addressCountry: e.target.value,
+												},
+											},
+										}))
+									}
+								/>
+							</div>
+						</div>
+
+						{formData.identity?.type !== "Person" && (
+							<div>
+								<h3 className="font-semibold text-kumo-strong">{t`Organization Policies`}</h3>
+								<div className="mt-2 grid gap-3 sm:grid-cols-2">
+									<Input
+										type="url"
+										label={t`Publishing Principles URL`}
+										placeholder="https://..."
+										value={formData.identity?.policies?.publishingPrinciples ?? ""}
+										onChange={(e) =>
+											setFormData((prev) => ({
+												...prev,
+												identity: {
+													...(prev.identity ?? { type: "Organization" }),
+													policies: {
+														...prev.identity?.policies,
+														publishingPrinciples: e.target.value,
+													},
+												},
+											}))
+										}
+									/>
+									<Input
+										type="url"
+										label={t`Corrections Policy URL`}
+										placeholder="https://..."
+										value={formData.identity?.policies?.correctionsPolicy ?? ""}
+										onChange={(e) =>
+											setFormData((prev) => ({
+												...prev,
+												identity: {
+													...(prev.identity ?? { type: "Organization" }),
+													policies: {
+														...prev.identity?.policies,
+														correctionsPolicy: e.target.value,
+													},
+												},
+											}))
+										}
+									/>
+								</div>
+							</div>
+						)}
+					</div>
+				</details>
 
 				<div className="flex justify-end">
 					<SaveButton

@@ -15,12 +15,59 @@ export interface SocialLink {
 	relMe?: boolean;
 }
 
+export interface ProfileLink {
+	id?: string;
+	platform: string;
+	value: string;
+	sameAs?: boolean;
+	relMe?: boolean;
+}
+
+export interface PostalAddress {
+	streetAddress?: string;
+	postalCode?: string;
+	addressLocality?: string;
+	addressRegion?: string;
+	addressCountry?: string;
+}
+
+export interface OrganizationIdentifier {
+	propertyID: string;
+	value: string;
+}
+
+export interface OrganizationPolicies {
+	publishingPrinciples?: string;
+	correctionsPolicy?: string;
+	ethicsPolicy?: string;
+	diversityPolicy?: string;
+}
+
+export interface SiteIdentity {
+	type: "Organization" | "Person";
+	name?: string;
+	alternateName?: string;
+	url?: string;
+	description?: string;
+	logo?: { mediaId: string; url?: string; alt?: string };
+	image?: { mediaId: string; url?: string; alt?: string };
+	links?: ProfileLink[];
+	address?: PostalAddress;
+	identifiers?: OrganizationIdentifier[];
+	policies?: OrganizationPolicies;
+	parentOrganization?: {
+		name: string;
+		url?: string;
+	};
+}
+
 export interface SiteSettings {
 	// Identity
 	title: string;
 	tagline?: string;
 	logo?: { mediaId: string; alt?: string; url?: string };
 	favicon?: { mediaId: string; url?: string };
+	identity?: SiteIdentity;
 
 	// URLs
 	url?: string;
@@ -54,10 +101,11 @@ export interface SiteSettings {
 }
 export interface SiteSettingsUpdate extends Omit<
 	Partial<SiteSettings>,
-	"logo" | "favicon" | "seo" | "socialLinks"
+	"logo" | "favicon" | "seo" | "socialLinks" | "identity"
 > {
 	logo?: SiteSettings["logo"] | null;
 	favicon?: SiteSettings["favicon"] | null;
+	identity?: SiteIdentity | null;
 	socialLinks?: SocialLink[] | null;
 	seo?: Omit<NonNullable<SiteSettings["seo"]>, "defaultOgImage"> & {
 		defaultOgImage?: NonNullable<SiteSettings["seo"]>["defaultOgImage"] | null;
