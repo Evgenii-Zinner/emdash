@@ -214,7 +214,7 @@ export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps)
 									<div className="flex flex-wrap items-center gap-2">
 										<span className="font-medium text-kumo-default">{platformLabel}</span>
 										{link.relMe && (
-											<Badge variant="secondary">
+											<Badge variant="info">
 												rel="me"
 											</Badge>
 										)}
