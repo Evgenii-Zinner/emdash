@@ -195,7 +195,9 @@ describe("SocialSettings", () => {
 		await userEvent.click(screen.getByRole("button", { name: "Save", exact: true }).first());
 
 		await vi.waitFor(() => expect(mockFetchSettings.mock.calls.length).toBeGreaterThanOrEqual(2));
-		await expect.element(screen.getByLabelText("URL").first()).toHaveValue("https://x.com/refetch_test");
+		await expect
+			.element(screen.getByLabelText("URL").first())
+			.toHaveValue("https://x.com/refetch_test");
 		expect(screen.getByRole("alert").query()).toBeNull();
 	});
 
@@ -235,7 +237,7 @@ describe("SocialSettings", () => {
 		}
 	});
 
-	it("adds, edits, and removes links with rel=\"me\" verification", async () => {
+	it('adds, edits, and removes links with rel="me" verification', async () => {
 		const screen = await renderSocialSettings();
 
 		// Click "Add Link"

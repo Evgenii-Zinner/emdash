@@ -11,7 +11,6 @@
 
 import type { Permission } from "@emdash-cms/auth";
 import type { ConfirmDialog, Element, PluginUiContext } from "@emdash-cms/blocks";
-import type { ProfileLink } from "../identity/types.js";
 // The plugin capability vocabulary, the legacy-rename map, and the manifest
 // shape are authored once in @emdash-cms/plugin-types and shared between core
 // (the manifest reader at install/runtime) and @emdash-cms/plugin-cli (the
@@ -46,11 +45,12 @@ import {
 } from "@emdash-cms/plugin-types";
 import type { JSX } from "astro/jsx-runtime";
 import type { z } from "astro/zod";
+
+import type { ContentFieldFilters } from "../content-list-query.js";
 // =============================================================================
 // Core Types
 // =============================================================================
-
-import type { ContentFieldFilters } from "../content-list-query.js";
+import type { ProfileLink } from "../identity/types.js";
 import type { FieldType, FieldValidation, FieldWidgetOptions } from "../schema/types.js";
 
 export type {
@@ -1668,7 +1668,7 @@ export interface PublicPageContext {
 		author?: string | null;
 	};
 	/**
-	 * Author or byline for author archive pages (RFC #4765 Phase 1).
+	 * Author or byline for author archive pages.
 	 */
 	author?:
 		| {
@@ -1681,7 +1681,7 @@ export interface PublicPageContext {
 		  }>
 		| null;
 	/**
-	 * Byline information for author archive pages (RFC #4765 Phase 1).
+	 * Byline information for author archive pages.
 	 */
 	byline?:
 		| {

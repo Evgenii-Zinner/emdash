@@ -36,7 +36,6 @@ import {
 import { renderFragments } from "../page/fragments.js";
 import JsonLdScript from "./JsonLdScript.astro";
 import {
-	generateAuthorSocialContributions,
 	generateBaseSeoContributions,
 	generateSiteSeoContributions,
 	generateSiteSocialContributions,
@@ -132,7 +131,6 @@ if (runtime) {
 		siteSettings.identity,
 		siteSettings.socialLinks,
 	);
-	const authorContributions = generateAuthorSocialContributions(resolvedPage);
 	const stagingContributions: PageMetadataContribution[] = siteSettings.staging
 		? [{ kind: "meta", name: "robots", content: "noindex, nofollow" }]
 		: [];
@@ -141,7 +139,6 @@ if (runtime) {
 		...pluginContributions,
 		...siteContributions,
 		...socialContributions,
-		...authorContributions,
 		...baseContributions,
 		...hreflangContributions,
 	];

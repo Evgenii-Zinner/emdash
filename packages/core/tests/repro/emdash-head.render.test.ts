@@ -75,7 +75,7 @@ describe("EmDashHead", () => {
 		expect(html).not.toContain("noindex");
 	});
 
-	it("renders rel=\"me\" links for verified social profiles and populates sameAs in JSON-LD", async () => {
+	it('renders rel="me" links for verified social profiles and populates sameAs in JSON-LD', async () => {
 		const html = await render(
 			{
 				socialLinks: [
@@ -113,7 +113,7 @@ describe("EmDashHead", () => {
 		expect(html).not.toContain('"https://example.com/alice"');
 	});
 
-	it("never emits rel=\"me\" or sameAs for non-http values or unverified links", async () => {
+	it('never emits rel="me" or sameAs for non-http values or unverified links', async () => {
 		const html = await render(
 			{
 				socialLinks: [
@@ -138,7 +138,7 @@ describe("EmDashHead", () => {
 		expect(html).not.toContain('"sameAs"');
 	});
 
-	it("renders rel=\"me\" links from site:identity.links for verified links", async () => {
+	it('renders rel="me" links from site:identity.links for verified links', async () => {
 		const html = await render(
 			{
 				identity: {
@@ -174,10 +174,10 @@ describe("EmDashHead", () => {
 
 		expect(html).toContain('<link rel="me" href="https://github.com/acme">');
 		expect(html).toContain('<link rel="me" href="https://bsky.app/profile/acme.bsky.social">');
-		expect(html).not.toContain('https://x.com/acme');
+		expect(html).not.toContain("https://x.com/acme");
 	});
 
-	it("renders author rel=\"me\" links on author archive pages", async () => {
+	it('renders author rel="me" links on author archive pages', async () => {
 		const html = await render(
 			{
 				identity: {
@@ -219,28 +219,24 @@ describe("EmDashHead", () => {
 
 		expect(html).toContain('<link rel="me" href="https://github.com/acme-site">');
 		expect(html).toContain('<link rel="me" href="https://github.com/alice-dev">');
-		expect(html).not.toContain('https://x.com/alice-dev');
+		expect(html).not.toContain("https://x.com/alice-dev");
 	});
 
-	it("renders byline rel=\"me\" links when page.byline is used on author pages", async () => {
-		const html = await render(
-			{},
-			runtimeWithPluginMetadata([]),
-			{
-				pageType: "author",
-				byline: {
-					profileLinks: [
-						{
-							id: "author-masto",
-							platform: "mastodon",
-							value: "https://mastodon.social/@carol",
-							relMe: true,
-							sameAs: true,
-						},
-					],
-				},
+	it('renders byline rel="me" links when page.byline is used on author pages', async () => {
+		const html = await render({}, runtimeWithPluginMetadata([]), {
+			pageType: "author",
+			byline: {
+				profileLinks: [
+					{
+						id: "author-masto",
+						platform: "mastodon",
+						value: "https://mastodon.social/@carol",
+						relMe: true,
+						sameAs: true,
+					},
+				],
 			},
-		);
+		});
 
 		expect(html).toContain('<link rel="me" href="https://mastodon.social/@carol">');
 	});

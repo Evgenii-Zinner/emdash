@@ -5,8 +5,8 @@
  * The resulting context is passed to EmDashHead / EmDashBodyStart / EmDashBodyEnd.
  */
 
-import type { BreadcrumbItem, PublicPageContext } from "../plugins/types.js";
 import type { ProfileLink } from "../identity/types.js";
+import type { BreadcrumbItem, PublicPageContext } from "../plugins/types.js";
 
 /** Fields shared by both input forms */
 interface PageContextFields {
@@ -31,7 +31,7 @@ interface PageContextFields {
 		modifiedTime?: string | null;
 		author?: string | null;
 	};
-	/** Author or byline for author archive pages (RFC #4765 Phase 1) */
+	/** Author or byline for author archive pages */
 	author?:
 		| {
 				profileLinks?: ProfileLink[];
@@ -42,7 +42,7 @@ interface PageContextFields {
 				[key: string]: unknown;
 		  }>
 		| null;
-	/** Byline information for author archive pages (RFC #4765 Phase 1) */
+	/** Byline information for author archive pages */
 	byline?:
 		| {
 				profileLinks?: ProfileLink[];

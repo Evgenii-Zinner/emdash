@@ -939,9 +939,9 @@ export interface BylineTable {
 	 * always populate it.
 	 */
 	translation_group: string | null;
-	/** Professional job title. Added by migration 095 (Phase 1 of RFC #4765). */
+	/** Professional job title. */
 	job_title?: string | null;
-	/** Serialized JSON array of ProfileLink objects. Added by migration 095 (Phase 1 of RFC #4765). */
+	/** Serialized JSON array of ProfileLink objects. */
 	profile_links?: string | null;
 }
 

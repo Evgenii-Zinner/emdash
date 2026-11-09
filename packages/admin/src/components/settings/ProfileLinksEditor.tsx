@@ -1,4 +1,5 @@
 import { Button, Input, Select, Switch } from "@cloudflare/kumo";
+import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Plus, Trash } from "@phosphor-icons/react";
 import * as React from "react";
@@ -6,19 +7,19 @@ import * as React from "react";
 import type { ProfileLink } from "../../lib/api/settings.js";
 
 export const BUILTIN_PLATFORMS = [
-	{ value: "github", label: "GitHub", urlPrefix: "https://github.com/" },
-	{ value: "twitter", label: "X (Twitter)", urlPrefix: "https://x.com/" },
-	{ value: "bluesky", label: "Bluesky", urlPrefix: "https://bsky.app/profile/" },
-	{ value: "mastodon", label: "Mastodon", urlPrefix: "" },
-	{ value: "threads", label: "Threads", urlPrefix: "https://threads.net/@" },
-	{ value: "linkedin", label: "LinkedIn", urlPrefix: "https://linkedin.com/in/" },
-	{ value: "youtube", label: "YouTube", urlPrefix: "https://youtube.com/@" },
-	{ value: "facebook", label: "Facebook", urlPrefix: "https://facebook.com/" },
-	{ value: "instagram", label: "Instagram", urlPrefix: "https://instagram.com/" },
-	{ value: "tiktok", label: "TikTok", urlPrefix: "https://tiktok.com/@" },
-	{ value: "telegram", label: "Telegram", urlPrefix: "https://t.me/" },
-	{ value: "wechat", label: "WeChat (Handle only)", urlPrefix: "" },
-	{ value: "custom", label: "Other / Custom URL", urlPrefix: "" },
+	{ value: "github", label: msg`GitHub`, urlPrefix: "https://github.com/" },
+	{ value: "twitter", label: msg`X (Twitter)`, urlPrefix: "https://x.com/" },
+	{ value: "bluesky", label: msg`Bluesky`, urlPrefix: "https://bsky.app/profile/" },
+	{ value: "mastodon", label: msg`Mastodon`, urlPrefix: "" },
+	{ value: "threads", label: msg`Threads`, urlPrefix: "https://threads.net/@" },
+	{ value: "linkedin", label: msg`LinkedIn`, urlPrefix: "https://linkedin.com/in/" },
+	{ value: "youtube", label: msg`YouTube`, urlPrefix: "https://youtube.com/@" },
+	{ value: "facebook", label: msg`Facebook`, urlPrefix: "https://facebook.com/" },
+	{ value: "instagram", label: msg`Instagram`, urlPrefix: "https://instagram.com/" },
+	{ value: "tiktok", label: msg`TikTok`, urlPrefix: "https://tiktok.com/@" },
+	{ value: "telegram", label: msg`Telegram`, urlPrefix: "https://t.me/" },
+	{ value: "wechat", label: msg`WeChat (Handle only)`, urlPrefix: "" },
+	{ value: "custom", label: msg`Other / Custom URL`, urlPrefix: "" },
 ] as const;
 
 export interface ProfileLinksEditorProps {
@@ -82,9 +83,7 @@ export function ProfileLinksEditor({ links, onChange, errors = {} }: ProfileLink
 		onChange(updated);
 	};
 
-	const platformItems = Object.fromEntries(
-		BUILTIN_PLATFORMS.map((p) => [p.value, p.label]),
-	);
+	const platformItems = Object.fromEntries(BUILTIN_PLATFORMS.map((p) => [p.value, t(p.label)]));
 
 	return (
 		<div className="grid gap-4">

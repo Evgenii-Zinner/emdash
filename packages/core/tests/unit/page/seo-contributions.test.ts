@@ -104,7 +104,7 @@ describe("generateSiteSocialContributions", () => {
 		expect(generateSiteSocialContributions(null)).toEqual([]);
 	});
 
-	it("emits rel=\"me\" links from site:identity.links for verified links", () => {
+	it('emits rel="me" links from site:identity.links for verified links', () => {
 		const identity = {
 			type: "Organization" as const,
 			name: "Test Org",
@@ -167,9 +167,7 @@ describe("generateSiteSocialContributions", () => {
 
 		const result = generateSiteSocialContributions(undefined, socialLinks);
 
-		expect(result).toEqual([
-			{ kind: "link", rel: "me", href: "https://github.com/emdash-cms" },
-		]);
+		expect(result).toEqual([{ kind: "link", rel: "me", href: "https://github.com/emdash-cms" }]);
 	});
 
 	it("does not fall back to socialLinks when site:identity is explicitly set with empty links", () => {
@@ -198,7 +196,7 @@ describe("generateAuthorSocialContributions", () => {
 		expect(generateAuthorSocialContributions({ author: null })).toEqual([]);
 	});
 
-	it("emits rel=\"me\" links for verified author byline links", () => {
+	it('emits rel="me" links for verified author byline links', () => {
 		const author = {
 			displayName: "Jane Doe",
 			profileLinks: [
@@ -228,9 +226,7 @@ describe("generateAuthorSocialContributions", () => {
 
 		const result = generateAuthorSocialContributions({ author });
 
-		expect(result).toEqual([
-			{ kind: "link", rel: "me", href: "https://github.com/janedoe" },
-		]);
+		expect(result).toEqual([{ kind: "link", rel: "me", href: "https://github.com/janedoe" }]);
 	});
 
 	it("supports byline directly or nested in author", () => {

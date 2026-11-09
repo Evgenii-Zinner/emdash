@@ -107,7 +107,6 @@ export interface SiteSettings {
 	// Identity & Social
 	/**
 	 * Canonical site identity and publisher entity configuration (Organization or Person).
-	 * RFC #4765 Phase 1.
 	 */
 	identity?: SiteIdentity;
 

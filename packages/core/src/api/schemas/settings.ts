@@ -35,7 +35,11 @@ const socialSettings = z
 
 export const socialLinkInput = z.object({
 	id: z.string().max(64).optional(),
-	platform: z.string().max(32).regex(/^[a-z0-9_-]+$/).optional(),
+	platform: z
+		.string()
+		.max(32)
+		.regex(/^[a-z0-9_-]+$/)
+		.optional(),
 	label: z.string().min(1).max(100),
 	url: httpUrl.max(2048),
 	relMe: z.boolean().optional(),

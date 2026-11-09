@@ -1,3 +1,4 @@
+import type { SocialLink } from "../settings/types.js";
 import {
 	extractLegacyHandle,
 	getPlatform,
@@ -5,7 +6,6 @@ import {
 	resolveProfileUrl,
 } from "./registry.js";
 import type { ProfileLink } from "./types.js";
-import type { SocialLink } from "../settings/types.js";
 
 const KNOWN_LEGACY_PLATFORMS = new Set<string>(LEGACY_PLATFORM_KEYS);
 
@@ -19,7 +19,7 @@ const LEGACY_PLATFORM_LABELS: Record<string, string> = {
 };
 
 /**
- * Normalizes an array of ProfileLinks (RFC #4765 Phase 1).
+ * Normalizes an array of ProfileLinks.
  * Enforces unique IDs, trims values, ignores forbidden URI schemes, and sets defaults.
  */
 export function normalizeProfileLinks(links: unknown): ProfileLink[] {
@@ -43,15 +43,15 @@ export function normalizeProfileLinks(links: unknown): ProfileLink[] {
 		const label =
 			typeof item.label === "string" && item.label.trim()
 				? item.label.trim()
-				: def?.displayName ?? (platform === "custom" ? "Custom Link" : platform.charAt(0).toUpperCase() + platform.slice(1));
+				: (def?.displayName ??
+					(platform === "custom"
+						? "Custom Link"
+						: platform.charAt(0).toUpperCase() + platform.slice(1)));
 
 		const sameAs = item.sameAs === true;
 		const relMe = item.relMe === true;
 
-		let id =
-			typeof item.id === "string" && item.id.trim()
-				? item.id.trim()
-				: `link-${platform}`;
+		let id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : `link-${platform}`;
 		if (seenIds.has(id)) {
 			let counter = 1;
 			while (seenIds.has(`${id}-${counter}`)) {
@@ -76,7 +76,7 @@ export function normalizeProfileLinks(links: unknown): ProfileLink[] {
 
 /**
  * Converts a legacy site:social map into canonical ProfileLink array.
- * Emits sameAs: true and relMe: false per RFC #4765 specification.
+ * Emits sameAs: true and relMe: false by default for legacy profiles.
  */
 export function legacySocialToProfileLinks(
 	social: Record<string, unknown> | null | undefined,
@@ -125,7 +125,7 @@ export function profileLinksToLegacySocial(
 
 /**
  * Non-destructively merges updates from a legacy site:social patch into ProfileLinks.
- * RFC #4765 Phase 1: leaves custom links and switches untouched.
+ * Leaves custom links and switches untouched.
  */
 export function mergeLegacySocialPatchIntoIdentityLinks(
 	existingLinks: ProfileLink[],
@@ -135,9 +135,7 @@ export function mergeLegacySocialPatchIntoIdentityLinks(
 
 	for (const [platform, rawValue] of Object.entries(patch)) {
 		const platformKey = platform.toLowerCase();
-		const existingIndex = links.findIndex(
-			(l) => l.platform?.toLowerCase() === platformKey,
-		);
+		const existingIndex = links.findIndex((l) => l.platform?.toLowerCase() === platformKey);
 
 		if (rawValue === null || rawValue === "" || rawValue === undefined) {
 			if (existingIndex !== -1) {

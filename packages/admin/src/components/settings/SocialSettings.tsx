@@ -4,7 +4,15 @@
  * Dynamic social and profile links with optional rel="me" identity verification.
  */
 
-import { Banner, Button, Input, Loader, Select, Switch, useKumoToastManager } from "@cloudflare/kumo";
+import {
+	Banner,
+	Button,
+	Input,
+	Loader,
+	Select,
+	Switch,
+	useKumoToastManager,
+} from "@cloudflare/kumo";
 import { useLingui } from "@lingui/react/macro";
 import { CaretDown, Plus, Trash } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -59,9 +67,7 @@ export function SocialSettings() {
 
 	const [formData, setFormData] = React.useState<FormState>({});
 	const [savedFormData, setSavedFormData] = React.useState<FormState>({});
-	const [errors, setErrors] = React.useState<
-		Record<number, { label?: string; url?: string }>
-	>({});
+	const [errors, setErrors] = React.useState<Record<number, { label?: string; url?: string }>>({});
 
 	React.useEffect(() => {
 		if (settings) {
@@ -158,11 +164,11 @@ export function SocialSettings() {
 
 		const hasCustomIdentity = Boolean(
 			settings?.identity ||
-				formData.identity?.name ||
-				formData.identity?.alternateName ||
-				(formData.identity?.type && formData.identity.type !== "Organization") ||
-				formData.identity?.address?.streetAddress ||
-				formData.identity?.policies?.publishingPrinciples,
+			formData.identity?.name ||
+			formData.identity?.alternateName ||
+			(formData.identity?.type && formData.identity.type !== "Organization") ||
+			formData.identity?.address?.streetAddress ||
+			formData.identity?.policies?.publishingPrinciples,
 		);
 
 		const submittedState: FormState = {
@@ -198,11 +204,7 @@ export function SocialSettings() {
 		}));
 	};
 
-	const handleUpdateLink = (
-		index: number,
-		field: keyof SocialLink,
-		value: string | boolean,
-	) => {
+	const handleUpdateLink = (index: number, field: keyof SocialLink, value: string | boolean) => {
 		setErrors((prev) => {
 			if (!prev[index]?.[field as "label" | "url"]) return prev;
 			const next = { ...prev };
@@ -283,12 +285,7 @@ export function SocialSettings() {
 				/>
 			}
 		>
-			<form
-				id="social-settings-form"
-				noValidate
-				onSubmit={handleSubmit}
-				className="grid gap-8"
-			>
+			<form id="social-settings-form" noValidate onSubmit={handleSubmit} className="grid gap-8">
 				<SettingsSection
 					title={t`Publisher Identity`}
 					description={t`Define whether this site represents an Organization or a Person for structured data.`}
@@ -359,9 +356,7 @@ export function SocialSettings() {
 											placeholder={t`e.g. GitHub, Mastodon`}
 											value={link.label}
 											error={errors[index]?.label}
-											onChange={(e) =>
-												handleUpdateLink(index, "label", e.target.value)
-											}
+											onChange={(e) => handleUpdateLink(index, "label", e.target.value)}
 										/>
 									</div>
 									<div className="flex-1">
@@ -372,9 +367,7 @@ export function SocialSettings() {
 											placeholder="https://..."
 											value={link.url}
 											error={errors[index]?.url}
-											onChange={(e) =>
-												handleUpdateLink(index, "url", e.target.value)
-											}
+											onChange={(e) => handleUpdateLink(index, "url", e.target.value)}
 										/>
 									</div>
 									<div className="flex shrink-0 items-center pb-1">
@@ -386,9 +379,7 @@ export function SocialSettings() {
 											className="text-kumo-danger"
 											onClick={() => handleRemoveLink(index)}
 											aria-label={
-												link.label?.trim()
-													? t`Remove ${link.label.trim()}`
-													: t`Remove link`
+												link.label?.trim() ? t`Remove ${link.label.trim()}` : t`Remove link`
 											}
 										/>
 									</div>
@@ -397,19 +388,14 @@ export function SocialSettings() {
 									<Switch
 										id={`rel-me-${link.id}`}
 										checked={link.relMe === true}
-										onCheckedChange={(checked) =>
-											handleUpdateLink(index, "relMe", checked)
-										}
+										onCheckedChange={(checked) => handleUpdateLink(index, "relMe", checked)}
 										aria-label={
 											link.label?.trim() || link.url?.trim()
 												? t`Verify identity (rel="me") for ${link.label?.trim() || link.url?.trim()}`
 												: t`Verify identity with rel="me"`
 										}
 									/>
-									<label
-										htmlFor={`rel-me-${link.id}`}
-										className="cursor-pointer select-none"
-									>
+									<label htmlFor={`rel-me-${link.id}`} className="cursor-pointer select-none">
 										{t`Verify identity with rel="me"`}
 									</label>
 								</div>

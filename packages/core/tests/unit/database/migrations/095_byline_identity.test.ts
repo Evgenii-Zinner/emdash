@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { NodeSqliteCompatDatabase as BetterSqlite3 } from "#node-sqlite";
 
-import { down, up } from "../../../../src/database/migrations/095_byline_identity.js";
 import { columnExists } from "../../../../src/database/dialect-helpers.js";
+import { down, up } from "../../../../src/database/migrations/095_byline_identity.js";
 
 describe("095_byline_identity migration", () => {
 	let db: Kysely<Record<string, never>> | undefined;

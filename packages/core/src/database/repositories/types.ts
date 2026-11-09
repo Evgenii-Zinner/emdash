@@ -133,9 +133,9 @@ export interface BylineSummary {
 	 * byline's `translation_group`.
 	 */
 	customFields?: Record<string, CustomFieldValue>;
-	/** Professional job title. Added in Phase 1 of RFC #4765. */
+	/** Professional job title. */
 	jobTitle?: string | null;
-	/** Profile and social links. Added in Phase 1 of RFC #4765. */
+	/** Profile and social links for author identity verification. */
 	profileLinks?: ProfileLink[] | null;
 }
 

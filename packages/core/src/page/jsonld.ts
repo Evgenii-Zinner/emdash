@@ -122,9 +122,7 @@ export function buildWebSiteJsonLd(
 		? socialLinks
 				.filter(
 					(l) =>
-						l.relMe === true &&
-						typeof l.url === "string" &&
-						/^https?:\/\//i.test(l.url.trim()),
+						l.relMe === true && typeof l.url === "string" && /^https?:\/\//i.test(l.url.trim()),
 				)
 				.map((l) => l.url.trim())
 		: undefined;

@@ -26,7 +26,11 @@ export const profileLinkValue = z
 export const profileLinkInputSchema = z
 	.object({
 		id: z.string().max(64).optional(),
-		platform: z.string().min(1).max(32).regex(/^[a-z0-9_-]+$/, "Platform must be alphanumeric with hyphens or underscores"),
+		platform: z
+			.string()
+			.min(1)
+			.max(32)
+			.regex(/^[a-z0-9_-]+$/, "Platform must be alphanumeric with hyphens or underscores"),
 		label: z.string().max(100).optional(),
 		value: profileLinkValue,
 		sameAs: z.boolean().optional().default(false),

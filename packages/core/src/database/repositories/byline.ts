@@ -4,12 +4,13 @@ import { ulid } from "ulidx";
 import { getBylineFieldDefs } from "../../bylines/field-defs-cache.js";
 import { getLocaleRank } from "../../i18n/config.js";
 import { localeMatches, localeOrder } from "../../i18n/query.js";
+import { normalizeProfileLinks } from "../../identity/links.js";
+import type { ProfileLink, ProfileLinkInput } from "../../identity/types.js";
 import {
 	invalidateBylineObjectCache,
 	invalidateCollectionCache,
 } from "../../object-cache/index.js";
 import { clearRequestCacheEntry, peekRequestCache, requestCached } from "../../request-cache.js";
-import type { ProfileLink, ProfileLinkInput } from "../../identity/types.js";
 import type { BylineFieldDefinition, CustomFieldValue } from "../../schema/types.js";
 import { chunks, SQL_BATCH_SIZE } from "../../utils/chunks.js";
 import { listTablesLike } from "../dialect-helpers.js";
@@ -133,9 +134,9 @@ export interface CreateBylineInput {
 	 * before the row insert so a bad value can't leave a bare byline behind.
 	 */
 	customFields?: Record<string, unknown>;
-	/** Professional job title. Added in Phase 1 of RFC #4765. */
+	/** Professional job title. */
 	jobTitle?: string | null;
-	/** Profile and social links. Added in Phase 1 of RFC #4765. */
+	/** Profile and social links. */
 	profileLinks?: (ProfileLink | ProfileLinkInput)[] | null;
 }
 
@@ -165,9 +166,9 @@ export interface UpdateBylineInput {
 	 * retrying the same update produces the same DB state.
 	 */
 	customFields?: Record<string, unknown>;
-	/** Professional job title. Added in Phase 1 of RFC #4765. */
+	/** Professional job title. */
 	jobTitle?: string | null;
-	/** Profile and social links. Added in Phase 1 of RFC #4765. */
+	/** Profile and social links. */
 	profileLinks?: (ProfileLink | ProfileLinkInput)[] | null;
 }
 
@@ -180,7 +181,7 @@ function parseProfileLinks(raw: string | null | undefined): ProfileLink[] | null
 	if (!raw) return null;
 	try {
 		const parsed = JSON.parse(raw);
-		return Array.isArray(parsed) ? (parsed as ProfileLink[]) : [];
+		return normalizeProfileLinks(parsed);
 	} catch {
 		return [];
 	}
@@ -848,7 +849,7 @@ export class BylineRepository {
 					job_title: input.jobTitle ?? null,
 					profile_links:
 						input.profileLinks !== undefined && input.profileLinks !== null
-							? JSON.stringify(input.profileLinks)
+							? JSON.stringify(normalizeProfileLinks(input.profileLinks))
 							: null,
 					// Omit `locale` so the DB DEFAULT (configured defaultLocale)
 					// applies — matches TaxonomyRepository.create.
@@ -899,7 +900,9 @@ export class BylineRepository {
 		if (input.jobTitle !== undefined) updates.job_title = input.jobTitle;
 		if (input.profileLinks !== undefined) {
 			updates.profile_links =
-				input.profileLinks !== null ? JSON.stringify(input.profileLinks) : null;
+				input.profileLinks !== null
+					? JSON.stringify(normalizeProfileLinks(input.profileLinks))
+					: null;
 		}
 
 		const group = existing.translationGroup ?? existing.id;

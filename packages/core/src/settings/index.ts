@@ -31,13 +31,6 @@ import { isMissingTableError } from "../utils/db-errors.js";
 
 /** Object-cache namespace for site settings. */
 const SETTINGS_CACHE_NAMESPACE = "settings";
-import type { Storage } from "../storage/types.js";
-import {
-	createSingleFlightCache,
-	type SingleFlightCache,
-	invalidateSingleFlightCache,
-	singleFlightCached,
-} from "../utils/single-flight-cache.js";
 import {
 	extractLegacyHandle,
 	getPlatform,
@@ -48,6 +41,13 @@ import {
 	type SiteIdentity,
 	type SiteIdentityInput,
 } from "../identity/index.js";
+import type { Storage } from "../storage/types.js";
+import {
+	createSingleFlightCache,
+	type SingleFlightCache,
+	invalidateSingleFlightCache,
+	singleFlightCached,
+} from "../utils/single-flight-cache.js";
 import type {
 	MediaReference,
 	SeoSettings,
@@ -80,7 +80,7 @@ const LEGACY_PLATFORM_LABELS: Record<string, string> = {
 };
 
 /**
- * Normalizes an array of ProfileLinks (RFC #4765 Phase 1).
+ * Normalizes an array of ProfileLinks.
  * Enforces unique IDs, trims values, ignores forbidden URI schemes, and sets defaults.
  */
 export function normalizeProfileLinks(links: unknown): ProfileLink[] {
@@ -104,15 +104,15 @@ export function normalizeProfileLinks(links: unknown): ProfileLink[] {
 		const label =
 			typeof item.label === "string" && item.label.trim()
 				? item.label.trim()
-				: def?.displayName ?? (platform === "custom" ? "Custom Link" : platform.charAt(0).toUpperCase() + platform.slice(1));
+				: (def?.displayName ??
+					(platform === "custom"
+						? "Custom Link"
+						: platform.charAt(0).toUpperCase() + platform.slice(1)));
 
 		const sameAs = item.sameAs === true;
 		const relMe = item.relMe === true;
 
-		let id =
-			typeof item.id === "string" && item.id.trim()
-				? item.id.trim()
-				: `link-${platform}`;
+		let id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : `link-${platform}`;
 		if (seenIds.has(id)) {
 			let counter = 1;
 			while (seenIds.has(`${id}-${counter}`)) {
@@ -137,7 +137,7 @@ export function normalizeProfileLinks(links: unknown): ProfileLink[] {
 
 /**
  * Converts a legacy site:social map into canonical ProfileLink array.
- * Emits sameAs: true and relMe: false per RFC #4765 specification.
+ * Emits sameAs: true and relMe: false by default for legacy profiles.
  */
 export function legacySocialToProfileLinks(
 	social: Record<string, unknown> | null | undefined,
@@ -186,7 +186,7 @@ export function profileLinksToLegacySocial(
 
 /**
  * Non-destructively merges updates from a legacy site:social patch into ProfileLinks.
- * RFC #4765 Phase 1: leaves custom links and switches untouched.
+ * Leaves custom links and switches untouched.
  */
 export function mergeLegacySocialPatchIntoIdentityLinks(
 	existingLinks: ProfileLink[],
@@ -196,9 +196,7 @@ export function mergeLegacySocialPatchIntoIdentityLinks(
 
 	for (const [platform, rawValue] of Object.entries(patch)) {
 		const platformKey = platform.toLowerCase();
-		const existingIndex = links.findIndex(
-			(l) => l.platform?.toLowerCase() === platformKey,
-		);
+		const existingIndex = links.findIndex((l) => l.platform?.toLowerCase() === platformKey);
 
 		if (rawValue === null || rawValue === "" || rawValue === undefined) {
 			if (existingIndex !== -1) {
@@ -546,7 +544,9 @@ export async function getSiteSettingWithDb<K extends SiteSettingKey>(
 			// eslint-disable-next-line typescript/no-unsafe-type-assertion -- normalized links
 			return normalizeSocialLinks(value) as unknown as SiteSettings[K];
 		}
-		const legacySocial = await options.get<Record<string, string | undefined>>(`${SETTINGS_PREFIX}social`);
+		const legacySocial = await options.get<Record<string, string | undefined>>(
+			`${SETTINGS_PREFIX}social`,
+		);
 		if (legacySocial) {
 			// eslint-disable-next-line typescript/no-unsafe-type-assertion -- synthesized fallback matches SocialLink[]
 			return legacySocialToSocialLinks(legacySocial) as unknown as SiteSettings[K];
@@ -743,7 +743,7 @@ async function loadSiteSettingsSnapshot(
 	}
 
 	// Normalization for identity, social and socialLinks:
-	// identity.links is the authoritative source of truth (RFC #4765 Phase 1).
+	// identity.links is the authoritative source of truth.
 	if (typedSettings.identity && typeof typedSettings.identity === "object") {
 		const rawIdentity = typedSettings.identity as Partial<SiteIdentity>;
 		const normalizedLinks = normalizeProfileLinks(rawIdentity.links);
@@ -782,7 +782,9 @@ async function loadSiteSettingsSnapshot(
 		typedSettings.socialLinks = profileLinksToSocialLinks(pLinks);
 	} else {
 		// Synthesize identity from legacy social and site metadata
-		const legacyLinks = legacySocialToProfileLinks(typedSettings.social as Record<string, unknown> | undefined);
+		const legacyLinks = legacySocialToProfileLinks(
+			typedSettings.social as Record<string, unknown> | undefined,
+		);
 		typedSettings.identity = {
 			type: "Organization",
 			name: typedSettings.title,
@@ -799,7 +801,6 @@ async function loadSiteSettingsSnapshot(
 /**
  * Resolves the site publisher identity (Organization or Person) with profile links
  * and media references resolved. Returns synthesized identity when site:identity is absent.
- * RFC #4765 Phase 1.
  */
 export async function getSiteIdentity(): Promise<SiteIdentity> {
 	const settings = await getSiteSettings();
@@ -933,8 +934,10 @@ export async function setSiteSettings(
 						continue;
 					}
 					// Someone sent a patch to `social` (e.g. MCP, script, legacy API) without identity.
-					// Non-destructively merge the patch into existing identity links (RFC #4765):
-					const currentIdentity = await transactionOptions.get<SiteIdentity>(`${SETTINGS_PREFIX}identity`);
+					// Non-destructively merge the patch into existing identity links:
+					const currentIdentity = await transactionOptions.get<SiteIdentity>(
+						`${SETTINGS_PREFIX}identity`,
+					);
 					const currentLinksRaw =
 						currentIdentity?.links ??
 						legacySocialToProfileLinks(
@@ -947,7 +950,10 @@ export async function setSiteSettings(
 						links: mergedLinks,
 					};
 					await transactionOptions.set(`${SETTINGS_PREFIX}identity`, nextIdentity);
-					await transactionOptions.set(`${SETTINGS_PREFIX}socialLinks`, profileLinksToSocialLinks(mergedLinks));
+					await transactionOptions.set(
+						`${SETTINGS_PREFIX}socialLinks`,
+						profileLinksToSocialLinks(mergedLinks),
+					);
 					const syncedSocial = profileLinksToLegacySocial(mergedLinks);
 					if (Object.keys(syncedSocial).length === 0) {
 						await transactionOptions.delete(optionName);

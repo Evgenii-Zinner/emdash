@@ -15,11 +15,11 @@
  */
 
 import type { ContentSeo } from "../database/repositories/types.js";
+import { resolveProfileUrl } from "../identity/index.js";
 import type { PageMetadataContribution, PublicPageContext } from "../plugins/types.js";
 import { buildSeoImageUrl, resolveSeoCanonicalUrl } from "../seo/media-url.js";
 import { getSiteSettings } from "../settings/index.js";
 import type { ProfileLink, SeoSettings, SiteIdentity, SocialLink } from "../settings/types.js";
-import { resolveProfileUrl } from "../identity/index.js";
 import { buildBlogPostingJsonLd, buildWebSiteJsonLd } from "./jsonld.js";
 import { peekSeoPanel } from "./seo-panel.js";
 
@@ -153,7 +153,7 @@ export function generateBaseSeoContributions(
 		}
 	}
 
-	// -- Author archive profile links (RFC #4765 Phase 1) --
+	// -- Author archive profile links --
 
 	const authorContributions = generateAuthorSocialContributions(page);
 	if (authorContributions.length > 0) {
@@ -364,7 +364,10 @@ export function generateAuthorSocialContributions(
 	const seenUrls = new Set<string>();
 
 	for (const candidate of candidates) {
-		const c = candidate as { profileLinks?: ProfileLink[]; byline?: { profileLinks?: ProfileLink[] } };
+		const c = candidate as {
+			profileLinks?: ProfileLink[];
+			byline?: { profileLinks?: ProfileLink[] };
+		};
 		const links = Array.isArray(c.profileLinks)
 			? c.profileLinks
 			: Array.isArray(c.byline?.profileLinks)
@@ -374,9 +377,7 @@ export function generateAuthorSocialContributions(
 		for (const link of links) {
 			if (link && link.relMe === true) {
 				const rawVal =
-					typeof link.value === "string"
-						? link.value
-						: (link as unknown as { url?: string }).url;
+					typeof link.value === "string" ? link.value : (link as unknown as { url?: string }).url;
 				if (typeof rawVal === "string" && rawVal.trim()) {
 					const resolved = resolveProfileUrl(link.platform ?? "custom", rawVal);
 					if (resolved && /^https:\/\//i.test(resolved) && !seenUrls.has(resolved)) {

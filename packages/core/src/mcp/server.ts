@@ -180,10 +180,7 @@ const settingsSocialLinkSchema = z.object({
 		.max(2048)
 		.refine((u) => HTTP_SCHEME_PATTERN.test(u), "URL must use http or https")
 		.describe("Profile URL (http or https)"),
-	relMe: z
-		.boolean()
-		.optional()
-		.describe("Whether to emit rel='me' identity verification link"),
+	relMe: z.boolean().optional().describe("Whether to emit rel='me' identity verification link"),
 });
 
 const settingsSeoSchema = z.object({
@@ -3852,9 +3849,7 @@ export function createMcpServer(
 					.max(50)
 					.nullable()
 					.optional()
-					.describe(
-						"List of dynamic social profile links with optional rel='me' verification",
-					),
+					.describe("List of dynamic social profile links with optional rel='me' verification"),
 				seo: settingsSeoSchema.optional().describe("Site-wide SEO defaults"),
 			}),
 		},

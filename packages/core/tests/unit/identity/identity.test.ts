@@ -1,4 +1,7 @@
+import type { Kysely } from "kysely";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+
+import type { Database } from "../../../src/database/types.js";
 import {
 	getPlatform,
 	getAllPlatforms,
@@ -17,8 +20,6 @@ import {
 	getSiteSettingsWithDb,
 } from "../../../src/settings/index.js";
 import { setupTestDatabase, teardownTestDatabase } from "../../utils/test-db.js";
-import type { Database } from "../../../src/database/types.js";
-import type { Kysely } from "kysely";
 
 describe("Platform Registry & Identity", () => {
 	describe("Platform Registry", () => {
@@ -29,18 +30,26 @@ describe("Platform Registry & Identity", () => {
 			expect(resolveProfileUrl("facebook", "alice")).toBe("https://facebook.com/alice");
 			expect(resolveProfileUrl("instagram", "@alice")).toBe("https://instagram.com/alice");
 			expect(resolveProfileUrl("linkedin", "in/alice")).toBe("https://linkedin.com/in/alice");
-			expect(resolveProfileUrl("linkedin", "company/acme")).toBe("https://linkedin.com/company/acme");
+			expect(resolveProfileUrl("linkedin", "company/acme")).toBe(
+				"https://linkedin.com/company/acme",
+			);
 			expect(resolveProfileUrl("youtube", "@alice")).toBe("https://youtube.com/@alice");
-			expect(resolveProfileUrl("youtube", "UC1234567890123456789012")).toBe("https://youtube.com/channel/UC1234567890123456789012");
+			expect(resolveProfileUrl("youtube", "UC1234567890123456789012")).toBe(
+				"https://youtube.com/channel/UC1234567890123456789012",
+			);
 		});
 
 		it("resolves modern social platforms", () => {
-			expect(resolveProfileUrl("bluesky", "alice.bsky.social")).toBe("https://bsky.app/profile/alice.bsky.social");
+			expect(resolveProfileUrl("bluesky", "alice.bsky.social")).toBe(
+				"https://bsky.app/profile/alice.bsky.social",
+			);
 			expect(resolveProfileUrl("threads", "@alice")).toBe("https://threads.net/@alice");
 			expect(resolveProfileUrl("telegram", "@alice")).toBe("https://t.me/alice");
 			expect(resolveProfileUrl("whatsapp", "+1 (555) 123-4567")).toBe("https://wa.me/15551234567");
 			expect(resolveProfileUrl("reddit", "u/alice")).toBe("https://reddit.com/user/alice");
-			expect(resolveProfileUrl("mastodon", "@alice@mastodon.social")).toBe("https://mastodon.social/@alice");
+			expect(resolveProfileUrl("mastodon", "@alice@mastodon.social")).toBe(
+				"https://mastodon.social/@alice",
+			);
 		});
 
 		it("treats wechat as handle-only without public profile URL", () => {
@@ -71,7 +80,13 @@ describe("Platform Registry & Identity", () => {
 			const raw = [
 				{ platform: "twitter", value: "alice", sameAs: true, relMe: true },
 				{ platform: "twitter", value: "bob", sameAs: true, relMe: false },
-				{ platform: "custom", value: "https://example.com", label: "My Blog", sameAs: false, relMe: true },
+				{
+					platform: "custom",
+					value: "https://example.com",
+					label: "My Blog",
+					sameAs: false,
+					relMe: true,
+				},
 				{ platform: "custom", value: "javascript:evil()", label: "Bad" },
 			];
 			const normalized = normalizeProfileLinks(raw);
@@ -107,11 +122,15 @@ describe("Platform Registry & Identity", () => {
 					addressLocality: "New York",
 					addressCountry: "US",
 				},
-				identifiers: [
-					{ propertyID: "VAT", value: "US123456789" },
-				],
+				identifiers: [{ propertyID: "VAT", value: "US123456789" }],
 				links: [
-					{ id: "l1", platform: "github", value: "https://github.com/acme", sameAs: true, relMe: false },
+					{
+						id: "l1",
+						platform: "github",
+						value: "https://github.com/acme",
+						sameAs: true,
+						relMe: false,
+					},
 					{ id: "l2", platform: "twitter", value: "@acme", sameAs: true, relMe: true },
 				],
 			};
@@ -131,13 +150,16 @@ describe("Platform Registry & Identity", () => {
 		});
 
 		it("synthesizes SiteIdentity when only legacy site:social exists", async () => {
-			await setSiteSettings({
-				title: "Legacy Site",
-				social: {
-					github: "legacyuser",
-					twitter: "@legacyuser",
+			await setSiteSettings(
+				{
+					title: "Legacy Site",
+					social: {
+						github: "legacyuser",
+						twitter: "@legacyuser",
+					},
 				},
-			}, db);
+				db,
+			);
 
 			const identity = await getSiteIdentityWithDb(db);
 			expect(identity.type).toBe("Organization");
@@ -152,7 +174,14 @@ describe("Platform Registry & Identity", () => {
 				type: "Person",
 				name: "Jane Doe",
 				links: [
-					{ id: "custom-1", platform: "custom", label: "Portfolio", value: "https://janedoe.com", sameAs: true, relMe: true },
+					{
+						id: "custom-1",
+						platform: "custom",
+						label: "Portfolio",
+						value: "https://janedoe.com",
+						sameAs: true,
+						relMe: true,
+					},
 					{ id: "gh-1", platform: "github", value: "janedoe", sameAs: true, relMe: false },
 				],
 			};
@@ -176,7 +205,13 @@ describe("Platform Registry & Identity", () => {
 				jobTitle: "Founder & Lead Designer",
 				bylineId: "byl_123456",
 				links: [
-					{ id: "p1", platform: "mastodon", value: "@jane@mastodon.social", sameAs: true, relMe: true },
+					{
+						id: "p1",
+						platform: "mastodon",
+						value: "@jane@mastodon.social",
+						sameAs: true,
+						relMe: true,
+					},
 				],
 			};
 
@@ -190,14 +225,15 @@ describe("Platform Registry & Identity", () => {
 		});
 
 		it("clears identity and synced legacy social when identity is set to null", async () => {
-			await setSiteSettings({
-				identity: {
-					type: "Organization",
-					links: [
-						{ id: "gh", platform: "github", value: "acme", sameAs: true, relMe: false },
-					],
+			await setSiteSettings(
+				{
+					identity: {
+						type: "Organization",
+						links: [{ id: "gh", platform: "github", value: "acme", sameAs: true, relMe: false }],
+					},
 				},
-			}, db);
+				db,
+			);
 
 			let settings = await getSiteSettingsWithDb(db);
 			expect(settings.social?.github).toBe("acme");
@@ -217,7 +253,13 @@ describe("Platform Registry & Identity", () => {
 				type: "Organization",
 				name: "Acme",
 				links: [
-					{ platform: "custom", label: "Website", value: "https://example.com", sameAs: true, relMe: true },
+					{
+						platform: "custom",
+						label: "Website",
+						value: "https://example.com",
+						sameAs: true,
+						relMe: true,
+					},
 					{ platform: "wechat", value: "acme_id", sameAs: false, relMe: false },
 				],
 			});
@@ -226,18 +268,14 @@ describe("Platform Registry & Identity", () => {
 			// Custom link missing label should fail
 			const invalidCustom = siteIdentityInputSchema.safeParse({
 				type: "Organization",
-				links: [
-					{ platform: "custom", value: "https://example.com" },
-				],
+				links: [{ platform: "custom", value: "https://example.com" }],
 			});
 			expect(invalidCustom.success).toBe(false);
 
 			// Forbidden scheme should fail
 			const invalidScheme = siteIdentityInputSchema.safeParse({
 				type: "Organization",
-				links: [
-					{ platform: "custom", label: "Evil", value: "javascript:alert(1)" },
-				],
+				links: [{ platform: "custom", label: "Evil", value: "javascript:alert(1)" }],
 			});
 			expect(invalidScheme.success).toBe(false);
 		});

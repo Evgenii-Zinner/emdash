@@ -53,8 +53,15 @@ describe("BylineRepository", () => {
 
 	it("creates, updates, and hydrates jobTitle and profileLinks", async () => {
 		const links = [
-			{ id: "1", platform: "github", value: "https://github.com/alice", sameAs: true, relMe: true },
-			{ id: "2", platform: "x", value: "alice", sameAs: false, relMe: false },
+			{
+				id: "1",
+				platform: "github",
+				label: "GitHub",
+				value: "https://github.com/alice",
+				sameAs: true,
+				relMe: true,
+			},
+			{ id: "2", platform: "x", label: "X", value: "alice", sameAs: false, relMe: false },
 		];
 		const created = await bylineRepo.create({
 			slug: "alice-identity",
@@ -72,7 +79,16 @@ describe("BylineRepository", () => {
 
 		const updated = await bylineRepo.update(created.id, {
 			jobTitle: "Principal Engineer",
-			profileLinks: [{ id: "1", platform: "github", value: "https://github.com/alice2", sameAs: true, relMe: true }],
+			profileLinks: [
+				{
+					id: "1",
+					platform: "github",
+					label: "GitHub",
+					value: "https://github.com/alice2",
+					sameAs: true,
+					relMe: true,
+				},
+			],
 		});
 		expect(updated?.jobTitle).toBe("Principal Engineer");
 		expect(updated?.profileLinks).toHaveLength(1);

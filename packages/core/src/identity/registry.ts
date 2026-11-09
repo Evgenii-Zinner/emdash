@@ -52,7 +52,10 @@ const PLATFORMS: Record<string, PlatformDefinition> = {
 				const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
 				if (host !== "twitter.com" && host !== "x.com") return null;
 				const parts = parsed.pathname.split("/").filter(Boolean);
-				if (parts.length === 1 && !["home", "explore", "notifications", "messages"].includes(parts[0].toLowerCase())) {
+				if (
+					parts.length === 1 &&
+					!["home", "explore", "notifications", "messages"].includes(parts[0].toLowerCase())
+				) {
 					const h = parts[0].replace(LEADING_AT_RE, "");
 					return `@${h}`;
 				}

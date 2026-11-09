@@ -6,8 +6,7 @@ import { columnExists, isPostgres } from "../dialect-helpers.js";
 const DUPLICATE_COLUMN_RE = /(?:duplicate column|column .* already exists|already exists.*column)/i;
 
 /**
- * Migration 095: Byline Identity Foundation (Phase 1 of RFC #4765).
- * Purely additive: adds nullable `job_title` and `profile_links` to `_emdash_bylines`.
+ * Migration 095: Adds nullable `job_title` and `profile_links` columns to `_emdash_bylines`.
  */
 async function hasColumn(db: Kysely<unknown>, table: string, column: string): Promise<boolean> {
 	if (isPostgres(db)) {
