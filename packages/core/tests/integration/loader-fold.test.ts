@@ -84,6 +84,17 @@ describeEachDialect("loader hydration fold", (dialect) => {
 			displayName: "Ada Lovelace",
 			slug: "ada",
 			avatarMediaId: "media_ada_avatar",
+			jobTitle: "Mathematician",
+			profileLinks: [
+				{
+					id: "ada-gh",
+					platform: "github",
+					value: "ada",
+					label: "GitHub",
+					relMe: true,
+					sameAs: true,
+				},
+			],
 		});
 		const editor = await bylines.create({
 			displayName: "Grace Hopper",
@@ -128,6 +139,8 @@ describeEachDialect("loader hydration fold", (dialect) => {
 		expect(
 			publicCredits.map((credit) => ({
 				displayName: credit.byline.displayName,
+				jobTitle: credit.byline.jobTitle,
+				profileLinks: credit.byline.profileLinks,
 				roleLabel: credit.roleLabel,
 				sortOrder: credit.sortOrder,
 				source: credit.source,
@@ -137,6 +150,8 @@ describeEachDialect("loader hydration fold", (dialect) => {
 		).toEqual([
 			{
 				displayName: "Grace Hopper",
+				jobTitle: null,
+				profileLinks: null,
 				roleLabel: "Editor",
 				sortOrder: 0,
 				source: "explicit",
@@ -145,6 +160,17 @@ describeEachDialect("loader hydration fold", (dialect) => {
 			},
 			{
 				displayName: "Ada Lovelace",
+				jobTitle: "Mathematician",
+				profileLinks: [
+					{
+						id: "ada-gh",
+						platform: "github",
+						value: "ada",
+						label: "GitHub",
+						relMe: true,
+						sameAs: true,
+					},
+				],
 				roleLabel: "Author",
 				sortOrder: 1,
 				source: "explicit",

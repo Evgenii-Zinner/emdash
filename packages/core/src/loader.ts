@@ -24,6 +24,8 @@ import {
 import type { BylineSummary, ContentBylineCredit } from "./database/repositories/types.js";
 import { decodeCursor, encodeCursor, InvalidCursorError } from "./database/repositories/types.js";
 import { validateIdentifier } from "./database/validate.js";
+import { normalizeProfileLinks } from "./identity/links.js";
+import type { ProfileLink } from "./identity/types.js";
 import { getI18nConfig, getLocaleCandidates, type I18nConfig } from "./i18n/config.js";
 import {
 	canonicalLocaleColumn,
@@ -198,7 +200,7 @@ function foldedHydrationSelects(db: Kysely<any>, type: string, outer: string) {
 		: sql`(SELECT ${termAgg} FROM ${sql.ref("content_taxonomies")} AS ct LEFT JOIN ${sql.ref("taxonomies")} AS exact_term ON exact_term.translation_group = ct.taxonomy_id AND exact_term.locale = ${o}.locale LEFT JOIN ${sql.ref("taxonomies")} AS default_term ON default_term.translation_group = ct.taxonomy_id AND default_term.locale = ${defaultLocale} WHERE ct.collection = ${type} AND ct.entry_id = ${o}.translation_group) AS ${sql.ref("_emdash_terms")}`;
 
 	const bylineInner = obj(
-		"'id', b.id, 'slug', b.slug, 'displayName', b.display_name, 'bio', b.bio, 'avatarMediaId', b.avatar_media_id, 'avatarStorageKey', m.storage_key, 'avatarAlt', m.alt, 'avatarBlurhash', m.blurhash, 'avatarDominantColor', m.dominant_color, 'websiteUrl', b.website_url, 'userId', b.user_id, 'isGuest', b.is_guest, 'createdAt', b.created_at, 'updatedAt', b.updated_at, 'locale', b.locale, 'translationGroup', b.translation_group",
+		"'id', b.id, 'slug', b.slug, 'displayName', b.display_name, 'bio', b.bio, 'avatarMediaId', b.avatar_media_id, 'avatarStorageKey', m.storage_key, 'avatarAlt', m.alt, 'avatarBlurhash', m.blurhash, 'avatarDominantColor', m.dominant_color, 'websiteUrl', b.website_url, 'userId', b.user_id, 'isGuest', b.is_guest, 'createdAt', b.created_at, 'updatedAt', b.updated_at, 'locale', b.locale, 'translationGroup', b.translation_group, 'jobTitle', b.job_title, 'profileLinks', b.profile_links",
 	);
 	const creditObj = pg
 		? sql.raw(
@@ -315,6 +317,19 @@ function expandFoldedSeo(row: Record<string, unknown>): void {
 	}
 }
 
+function parseFoldedProfileLinks(raw: unknown): ProfileLink[] | null {
+	if (!raw) return null;
+	if (Array.isArray(raw)) return normalizeProfileLinks(raw);
+	if (typeof raw === "string") {
+		try {
+			return normalizeProfileLinks(JSON.parse(raw));
+		} catch {
+			return [];
+		}
+	}
+	return null;
+}
+
 /**
  * A folded byline object as a `BylineSummary`. The fold's JSON keys are the
  * `BylineSummary` keys (see `bylineInner` in {@link foldedHydrationSelects}).
@@ -323,7 +338,13 @@ function foldedBylineSummary(raw: unknown): BylineSummary {
 	const byline = isPlainObject(raw) ? raw : {};
 	// Folded rows omit custom-field values.
 	// eslint-disable-next-line typescript/no-unsafe-type-assertion -- keys set by the fold's SQL
-	return { ...byline, isGuest: Boolean(byline.isGuest), customFields: {} } as BylineSummary;
+	return {
+		...byline,
+		isGuest: Boolean(byline.isGuest),
+		jobTitle: (byline.jobTitle as string | null | undefined) ?? null,
+		profileLinks: parseFoldedProfileLinks(byline.profileLinks),
+		customFields: {},
+	} as BylineSummary;
 }
 
 export function creditsFromFoldedBylines(folded: unknown[]): ContentBylineCredit[] {
