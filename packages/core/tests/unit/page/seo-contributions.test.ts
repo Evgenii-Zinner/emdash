@@ -478,3 +478,93 @@ describe("SEO panel request cache", () => {
 		expect(await peekSeoPanel("posts", "01NOCTX")).toBeNull();
 	});
 });
+
+describe("buildBlogPostingJsonLd", () => {
+	it("includes single author Person and publisher sameAs", () => {
+		const page = {
+			pageType: "article" as const,
+			canonical: "https://example.com/posts/test",
+			title: "Test Post",
+			siteName: "My Site",
+			articleMeta: {
+				author: "Alice Smith",
+				publishedTime: "2026-11-09T00:00:00Z",
+			},
+		} as PublicPageContext;
+
+		const socialLinks = [
+			{
+				id: "gh",
+				platform: "github",
+				label: "GitHub",
+				url: "https://github.com/mysite",
+				relMe: true,
+			},
+		];
+
+		const result = buildBlogPostingJsonLd(page, null, socialLinks);
+
+		expect(result).toMatchObject({
+			"@context": "https://schema.org",
+			"@type": "BlogPosting",
+			author: {
+				"@type": "Person",
+				name: "Alice Smith",
+			},
+			publisher: {
+				"@type": "Organization",
+				name: "My Site",
+				sameAs: ["https://github.com/mysite"],
+			},
+		});
+	});
+
+	it("supports multiple comma-separated authors as Person array", () => {
+		const page = {
+			pageType: "article" as const,
+			canonical: "https://example.com/posts/test",
+			title: "Test Post",
+			articleMeta: {
+				author: "Alice Smith, Bob Jones",
+			},
+		} as PublicPageContext;
+
+		const result = buildBlogPostingJsonLd(page);
+
+		expect(result?.author).toEqual([
+			{ "@type": "Person", name: "Alice Smith" },
+			{ "@type": "Person", name: "Bob Jones" },
+		]);
+	});
+
+	it("populates author sameAs from bylines profileLinks in BlogPosting JSON-LD", () => {
+		const page = {
+			pageType: "article" as const,
+			canonical: "https://example.com/posts/test",
+			title: "Test Post",
+			siteName: "My Site",
+			byline: [
+				{
+					byline: {
+						displayName: "Alice Smith",
+						profileLinks: [
+							{ platform: "github", value: "alice", sameAs: true },
+							{ platform: "telegram", value: "alice_tg", sameAs: true },
+							{ platform: "wechat", value: "wxid_alice", sameAs: false },
+							{ platform: "twitter", value: "alice_tw", sameAs: false },
+						],
+					},
+					roleLabel: "Author",
+				},
+			],
+		} as unknown as PublicPageContext;
+
+		const result = buildBlogPostingJsonLd(page);
+
+		expect(result?.author).toEqual({
+			"@type": "Person",
+			name: "Alice Smith",
+			sameAs: ["https://github.com/alice", "https://t.me/alice_tg"],
+		});
+	});
+});

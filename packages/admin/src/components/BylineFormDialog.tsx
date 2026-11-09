@@ -368,9 +368,7 @@ export function BylineFormDialog({
 		if (form.jobTitle?.trim()) {
 			values.jobTitle = form.jobTitle.trim();
 		}
-		if (form.profileLinks && form.profileLinks.length > 0) {
-			values.profileLinks = form.profileLinks;
-		}
+		values.profileLinks = form.profileLinks ?? [];
 		// Without field definitions the custom-field inputs aren't shown, so
 		// leave stored values untouched rather than echoing them back. A new
 		// byline only sends custom fields that were filled in.

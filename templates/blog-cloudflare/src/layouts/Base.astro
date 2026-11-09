@@ -25,6 +25,7 @@ interface Props {
 	publishedTime?: string | null;
 	modifiedTime?: string | null;
 	author?: string | null;
+	byline?: unknown;
 	/** Pass content reference for plugin page contributions on content pages */
 	content?: { collection: string; id: string; slug?: string | null };
 }
@@ -40,6 +41,7 @@ const {
 	publishedTime,
 	modifiedTime,
 	author,
+	byline,
 	content,
 } = Astro.props;
 const [settingsResult, menuResult] = await Promise.all([
@@ -77,6 +79,7 @@ const pageCtx = createPublicPageContext({
 	content,
 	seo: { ogImage: image, robots },
 	articleMeta: { publishedTime, modifiedTime, author },
+	byline,
 	siteName: siteTitle,
 });
 

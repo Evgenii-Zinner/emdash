@@ -5,6 +5,7 @@
  * is serialized via safeJsonLdSerialize() and never hand-rolled in templates.
  */
 
+import { resolveProfileUrl } from "../identity/index.js";
 import type { PublicPageContext } from "../plugins/types.js";
 import type { SocialLink } from "../settings/types.js";
 
@@ -58,9 +59,20 @@ function siteOrigin(page: PublicPageContext): string {
  *   the page has no own OG image. Matches the fallback applied to `og:image`
  *   in `generateBaseSeoContributions`.
  */
+function extractAuthorSameAs(profileLinks?: unknown): string[] | undefined {
+	if (!Array.isArray(profileLinks)) return undefined;
+	const urls = profileLinks
+		.filter((l) => l && typeof l === "object" && l.sameAs !== false && l.platform !== "wechat")
+		.map((l) => resolveProfileUrl(l.platform ?? "custom", l.value ?? l.url) || l.value || l.url)
+		.filter((url) => typeof url === "string" && /^https?:\/\//i.test(url.trim()))
+		.map((url) => url.trim());
+	return urls.length > 0 ? urls : undefined;
+}
+
 export function buildBlogPostingJsonLd(
 	page: PublicPageContext,
 	defaultOgImage?: string | null,
+	socialLinks?: SocialLink[],
 ): Record<string, unknown> | null {
 	if (page.pageType !== "article" || !page.canonical) return null;
 
@@ -72,6 +84,71 @@ export function buildBlogPostingJsonLd(
 	const author = page.articleMeta?.author;
 	const siteName = page.siteName;
 
+	const authors = author
+		? author
+				.split(",")
+				.map((a) => a.trim())
+				.filter(Boolean)
+		: [];
+
+	const rawBylines = Array.isArray(page.byline)
+		? page.byline
+		: page.byline && typeof page.byline === "object"
+			? [page.byline]
+			: Array.isArray(page.author)
+				? page.author
+				: page.author && typeof page.author === "object"
+					? [page.author]
+					: [];
+
+	const bylineList: Array<{ name: string; profileLinks?: unknown[] }> = [];
+	for (const item of rawBylines) {
+		if (!item || typeof item !== "object") continue;
+		const unwrapped =
+			"byline" in item && item.byline && typeof item.byline === "object" ? item.byline : item;
+		const name = (unwrapped as any).displayName ?? (unwrapped as any).name;
+		if (typeof name === "string" && name.trim()) {
+			bylineList.push({
+				name: name.trim(),
+				profileLinks: (unwrapped as any).profileLinks,
+			});
+		}
+	}
+
+	let authorNode: unknown;
+	if (bylineList.length === 1) {
+		const sameAs = extractAuthorSameAs(bylineList[0]!.profileLinks);
+		authorNode = {
+			"@type": "Person",
+			name: bylineList[0]!.name,
+			...(sameAs ? { sameAs } : {}),
+		};
+	} else if (bylineList.length > 1) {
+		authorNode = bylineList.map((b) => {
+			const sameAs = extractAuthorSameAs(b.profileLinks);
+			return {
+				"@type": "Person",
+				name: b.name,
+				...(sameAs ? { sameAs } : {}),
+			};
+		});
+	} else if (authors.length === 1) {
+		authorNode = { "@type": "Person", name: authors[0] };
+	} else if (authors.length > 1) {
+		authorNode = authors.map((name) => ({ "@type": "Person", name }));
+	}
+
+	const sameAs = socialLinks
+		? socialLinks
+				.filter(
+					(l) =>
+						(l as any).sameAs !== false &&
+						typeof l.url === "string" &&
+						/^https?:\/\//i.test(l.url.trim()),
+				)
+				.map((l) => l.url.trim())
+		: undefined;
+
 	return cleanJsonLd({
 		"@context": "https://schema.org",
 		"@type": "BlogPosting",
@@ -82,17 +159,13 @@ export function buildBlogPostingJsonLd(
 		url: page.canonical,
 		datePublished: publishedTime || undefined,
 		dateModified: modifiedTime || publishedTime || undefined,
-		author: author
-			? {
-					"@type": "Person",
-					name: author,
-				}
-			: undefined,
+		author: authorNode,
 		publisher: siteName
 			? {
 					"@type": "Organization",
 					"@id": `${siteOrigin(page)}/#organization`,
 					name: siteName,
+					sameAs: sameAs && sameAs.length > 0 ? sameAs : undefined,
 				}
 			: undefined,
 		mainEntityOfPage: {
@@ -122,7 +195,9 @@ export function buildWebSiteJsonLd(
 		? socialLinks
 				.filter(
 					(l) =>
-						l.relMe === true && typeof l.url === "string" && /^https?:\/\//i.test(l.url.trim()),
+						(l as any).sameAs !== false &&
+						typeof l.url === "string" &&
+						/^https?:\/\//i.test(l.url.trim()),
 				)
 				.map((l) => l.url.trim())
 		: undefined;

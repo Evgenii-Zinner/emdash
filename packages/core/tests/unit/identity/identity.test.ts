@@ -279,5 +279,49 @@ describe("Platform Registry & Identity", () => {
 			});
 			expect(invalidScheme.success).toBe(false);
 		});
+
+		it("enforces strict per-platform validation rules", async () => {
+			const { validateProfileLinkValue, profileLinkInputSchema } = await import(
+				"../../../src/identity/schemas.js"
+			);
+
+			// Custom: accepts URLs, custom protocol URIs, and handles (blocks only dangerous schemes)
+			expect(validateProfileLinkValue("custom", "https://example.com/me")).toBeNull();
+			expect(validateProfileLinkValue("custom", "@alice:matrix.org")).toBeNull();
+			expect(validateProfileLinkValue("custom", "matrix:u/alice")).toBeNull();
+			expect(validateProfileLinkValue("custom", "signal_username.01")).toBeNull();
+			expect(validateProfileLinkValue("custom", "javascript:alert(1)")).toContain("Dangerous URI scheme");
+			expect(validateProfileLinkValue("custom", "data:text/html,evil")).toContain("Dangerous URI scheme");
+			expect(
+				profileLinkInputSchema.safeParse({ platform: "custom", label: "Matrix", value: "@alice:matrix.org" }).success,
+			).toBe(true);
+			expect(
+				profileLinkInputSchema.safeParse({ platform: "custom", label: "Evil", value: "javascript:evil()" }).success,
+			).toBe(false);
+
+			// WeChat: handle only, no URLs or spaces
+			expect(validateProfileLinkValue("wechat", "valid_wechat_id")).toBeNull();
+			expect(validateProfileLinkValue("wechat", "https://wechat.com/id")).toContain("handle only");
+			expect(validateProfileLinkValue("wechat", "bad handle")).toContain("spaces");
+			expect(profileLinkInputSchema.safeParse({ platform: "wechat", value: "https://bad.url" }).success).toBe(false);
+
+			// GitHub: accepts valid handle or github.com URL, rejects other domains
+			expect(validateProfileLinkValue("github", "octocat")).toBeNull();
+			expect(validateProfileLinkValue("github", "@octocat")).toBeNull();
+			expect(validateProfileLinkValue("github", "https://github.com/octocat")).toBeNull();
+			expect(validateProfileLinkValue("github", "https://google.com/octocat")).toContain("github.com URL for github");
+			expect(profileLinkInputSchema.safeParse({ platform: "github", value: "https://google.com" }).success).toBe(false);
+
+			// Telegram: accepts handle or t.me URL, rejects other domains
+			expect(validateProfileLinkValue("telegram", "durov")).toBeNull();
+			expect(validateProfileLinkValue("telegram", "https://t.me/durov")).toBeNull();
+			expect(validateProfileLinkValue("telegram", "https://facebook.com/durov")).toContain("t.me URL for telegram");
+
+			// Twitter: accepts handle or x.com / twitter.com URL, rejects other domains
+			expect(validateProfileLinkValue("twitter", "jack")).toBeNull();
+			expect(validateProfileLinkValue("twitter", "https://x.com/jack")).toBeNull();
+			expect(validateProfileLinkValue("twitter", "https://twitter.com/jack")).toBeNull();
+			expect(validateProfileLinkValue("twitter", "https://youtube.com/jack")).toContain("URL for twitter");
+		});
 	});
 });

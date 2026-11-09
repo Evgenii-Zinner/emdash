@@ -142,7 +142,7 @@ export function generateBaseSeoContributions(
 	// -- JSON-LD --
 
 	if (page.pageType === "article") {
-		const blogPosting = buildBlogPostingJsonLd(page, defaultOgImage ?? null);
+		const blogPosting = buildBlogPostingJsonLd(page, defaultOgImage ?? null, socialLinks);
 		if (blogPosting) {
 			contributions.push({ kind: "jsonld", id: "primary", graph: blogPosting });
 		}

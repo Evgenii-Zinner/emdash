@@ -120,6 +120,8 @@ const hasHeadings = (post.data.content ?? []).some(
 	type="article"
 	publishedTime={post.data.publishedAt?.toISOString() ?? null}
 	modifiedTime={post.data.updatedAt.toISOString()}
+	author={bylines.length > 0 ? bylines.map((b: any) => b.byline?.displayName ?? b.displayName).filter(Boolean).join(", ") || null : null}
+	byline={bylines}
 	content={{ collection: "posts", id: post.data.id, slug }}
 >
 	<article class="post">
