@@ -19,6 +19,7 @@ export interface ProfileLink {
 	id?: string;
 	platform: string;
 	value: string;
+	label?: string;
 	sameAs?: boolean;
 	relMe?: boolean;
 }

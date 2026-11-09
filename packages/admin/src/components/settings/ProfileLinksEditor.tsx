@@ -1,4 +1,4 @@
-import { Button, Input, LayerDialog, Select, Switch } from "@cloudflare/kumo";
+import { Badge, Button, Input, LayerDialog, Select, Switch } from "@cloudflare/kumo";
 import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { CaretDown, CaretUp, Plus, ShareNetwork, Trash } from "@phosphor-icons/react";
@@ -28,34 +28,34 @@ export interface ProfileLinksEditorProps {
 	errors?: Record<number, { platform?: string; value?: string }>;
 }
 
-function getPlatformPlaceholder(platform: string): string {
+function getPlatformPlaceholder(platform: string, t: (...args: any[]) => string): string {
 	switch (platform) {
 		case "wechat":
-			return "WeChat ID (handle only)";
+			return t`WeChat ID (handle only)`;
 		case "telegram":
-			return "@username or https://t.me/...";
+			return t`@username or https://t.me/...`;
 		case "bluesky":
-			return "user.bsky.social or https://...";
+			return t`user.bsky.social or https://...`;
 		case "twitter":
-			return "@handle or https://x.com/...";
+			return t`@handle or https://x.com/...`;
 		case "github":
-			return "username or https://github.com/...";
+			return t`username or https://github.com/...`;
 		case "threads":
-			return "@handle or https://threads.net/@...";
+			return t`@handle or https://threads.net/@...`;
 		case "instagram":
-			return "@handle or https://instagram.com/...";
+			return t`@handle or https://instagram.com/...`;
 		case "tiktok":
-			return "@handle or https://tiktok.com/@...";
+			return t`@handle or https://tiktok.com/@...`;
 		case "youtube":
-			return "@channel or https://youtube.com/@...";
+			return t`@channel or https://youtube.com/@...`;
 		case "linkedin":
-			return "in/username or https://linkedin.com/in/...";
+			return t`in/username or https://linkedin.com/in/...`;
 		case "mastodon":
-			return "@user@instance or https://...";
+			return t`@user@instance or https://...`;
 		case "custom":
-			return "https://..., matrix:..., or @handle";
+			return t`https://..., matrix:..., or @handle`;
 		default:
-			return "https://... or @handle";
+			return t`https://... or @handle`;
 	}
 }
 
@@ -76,14 +76,18 @@ const PLATFORM_URL_DOMAINS: Record<string, string[]> = {
 	reddit: ["reddit.com"],
 };
 
-function validatePlatformHandleOrUrl(platform: string, value: string): string | null {
+function validatePlatformHandleOrUrl(
+	platform: string,
+	value: string,
+	t: (...args: any[]) => string,
+): string | null {
 	const trimmed = value.trim();
-	if (!trimmed) return "Please enter a handle or URL";
+	if (!trimmed) return t`Please enter a handle or URL`;
 
 	// 1. Custom links: allow any non-empty value, only blocking dangerous schemes
 	if (platform === "custom") {
 		if (FORBIDDEN_SCHEME_RE.test(trimmed)) {
-			return "Dangerous URI scheme not permitted";
+			return t`Dangerous URI scheme not permitted`;
 		}
 		return null;
 	}
@@ -91,13 +95,13 @@ function validatePlatformHandleOrUrl(platform: string, value: string): string | 
 	// 2. WeChat (handle-only): MUST NOT be a URL, no spaces, 3-32 chars
 	if (platform === "wechat") {
 		if (trimmed.includes("://") || HTTP_URL_PATTERN.test(trimmed)) {
-			return "WeChat ID must be a handle only, not a URL";
+			return t`WeChat ID must be a handle only, not a URL`;
 		}
 		if (/\s/.test(trimmed)) {
-			return "WeChat ID cannot contain spaces";
+			return t`WeChat ID cannot contain spaces`;
 		}
 		if (!/^[a-zA-Z0-9_-]{3,32}$/.test(trimmed)) {
-			return "WeChat ID must be 3-32 letters, numbers, hyphens, or underscores";
+			return t`WeChat ID must be 3-32 letters, numbers, hyphens, or underscores`;
 		}
 		return null;
 	}
@@ -107,49 +111,49 @@ function validatePlatformHandleOrUrl(platform: string, value: string): string | 
 		try {
 			const parsed = new URL(trimmed);
 			if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-				return "URL must use http or https scheme";
+				return t`URL must use http or https scheme`;
 			}
 			const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
 			const allowedHosts = PLATFORM_URL_DOMAINS[platform];
 			if (allowedHosts && !allowedHosts.some((h) => host === h || host.endsWith(`.${h}`))) {
-				return `URL must be a ${allowedHosts[0]} URL for ${platform}`;
+				return t`URL must be a ${allowedHosts[0]} URL for ${platform}`;
 			}
 			return null;
 		} catch {
-			return "Invalid URL format";
+			return t`Invalid URL format`;
 		}
 	}
 
 	// 4. Handle format validation (handles cannot contain spaces)
 	if (/\s/.test(trimmed)) {
-		return "Handle cannot contain spaces";
+		return t`Handle cannot contain spaces`;
 	}
 
 	const cleanHandle = trimmed.replace(/^@/, "");
 
 	if (platform === "github") {
 		if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/.test(cleanHandle)) {
-			return "GitHub handle must be 1-39 letters, numbers, or hyphens";
+			return t`GitHub handle must be 1-39 letters, numbers, or hyphens`;
 		}
 	} else if (platform === "twitter") {
 		if (!/^[a-zA-Z0-9_]{1,15}$/.test(cleanHandle)) {
-			return "X/Twitter handle must be 1-15 letters, numbers, or underscores";
+			return t`X/Twitter handle must be 1-15 letters, numbers, or underscores`;
 		}
 	} else if (platform === "telegram") {
 		if (!/^[a-zA-Z0-9_]{5,32}$/.test(cleanHandle)) {
-			return "Telegram handle must be 5-32 letters, numbers, or underscores";
+			return t`Telegram handle must be 5-32 letters, numbers, or underscores`;
 		}
 	} else if (platform === "bluesky") {
 		if (
 			!/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(cleanHandle) &&
 			!/^[a-zA-Z0-9_]{1,64}$/.test(cleanHandle)
 		) {
-			return "Bluesky handle must be e.g. user.bsky.social";
+			return t`Bluesky handle must be e.g. user.bsky.social`;
 		}
 	} else if (platform === "mastodon") {
 		const match = cleanHandle.match(/^([^@\s]+)@([^@\s]+\.[a-zA-Z]{2,})$/);
 		if (!match) {
-			return "Mastodon handle must be @user@instance (e.g. @user@mastodon.social) or a full profile URL";
+			return t`Mastodon handle must be @user@instance (e.g. @user@mastodon.social) or a full profile URL`;
 		}
 	}
 
@@ -238,7 +242,7 @@ export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps)
 			return;
 		}
 
-		const error = validatePlatformHandleOrUrl(modalDraft.platform, modalDraft.value);
+		const error = validatePlatformHandleOrUrl(modalDraft.platform, modalDraft.value, t);
 		if (error) {
 			setModalError(error);
 			return;
@@ -319,14 +323,14 @@ export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps)
 									<div className="flex flex-wrap items-center gap-2">
 										<span className="font-medium text-kumo-default">{platformLabel}</span>
 										{link.relMe && (
-											<span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+											<Badge variant="secondary">
 												rel="me"
-											</span>
+											</Badge>
 										)}
 										{link.sameAs !== false && link.platform !== "wechat" && (
-											<span className="inline-flex items-center rounded-full bg-kumo-tint px-2 py-0.5 text-xs font-medium text-kumo-subtle">
+											<Badge variant="neutral">
 												sameAs
-											</span>
+											</Badge>
 										)}
 									</div>
 									<div className="mt-0.5 truncate font-mono text-sm text-kumo-subtle">
@@ -441,7 +445,7 @@ export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps)
 											? t`URL, Handle, or ID`
 											: t`Handle or URL`
 								}
-								placeholder={getPlatformPlaceholder(modalDraft.platform)}
+								placeholder={getPlatformPlaceholder(modalDraft.platform, t)}
 								value={modalDraft.value}
 								onChange={(e) => handleDraftValueChange(e.target.value)}
 								error={
