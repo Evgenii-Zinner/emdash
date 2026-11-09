@@ -1,7 +1,7 @@
 import { Toasty } from "@cloudflare/kumo";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import type { SiteSettings } from "../../../src/lib/api";
 import { render } from "../../utils/render";
@@ -35,22 +35,26 @@ const { SocialSettings } = await import("../../../src/components/settings/Social
 
 const defaultSettings: Partial<SiteSettings> = {
 	title: "My Blog",
-	socialLinks: [
-		{
-			id: "twitter",
-			platform: "twitter",
-			label: "Twitter",
-			url: "https://x.com/example",
-			relMe: true,
-		},
-		{
-			id: "github",
-			platform: "github",
-			label: "GitHub",
-			url: "https://github.com/example",
-			relMe: true,
-		},
-	],
+	identity: {
+		type: "Organization",
+		name: "My Blog",
+		links: [
+			{
+				id: "twitter",
+				platform: "twitter",
+				value: "https://x.com/example",
+				sameAs: true,
+				relMe: true,
+			},
+			{
+				id: "github",
+				platform: "github",
+				value: "https://github.com/example",
+				sameAs: true,
+				relMe: true,
+			},
+		],
+	},
 };
 
 function Wrapper({ children }: { children: React.ReactNode }) {
@@ -96,14 +100,8 @@ describe("SocialSettings", () => {
 	it("renders existing social links with both save actions initially disabled", async () => {
 		const screen = await renderSocialSettings();
 
-		const labelInputs = screen.getByLabelText("Platform / Label");
-		const urlInputs = screen.getByLabelText("URL");
-
-		await expect.element(labelInputs.first()).toHaveValue("Twitter");
-		await expect.element(urlInputs.first()).toHaveValue("https://x.com/example");
-
-		await expect.element(labelInputs.nth(1)).toHaveValue("GitHub");
-		await expect.element(urlInputs.nth(1)).toHaveValue("https://github.com/example");
+		await expect.element(screen.getByText("https://x.com/example")).toBeInTheDocument();
+		await expect.element(screen.getByText("https://github.com/example")).toBeInTheDocument();
 
 		const saveButtons = screen.getByRole("button", { name: "Saved", exact: true });
 		await expect.poll(() => saveButtons.elements()).toHaveLength(2);
@@ -112,184 +110,63 @@ describe("SocialSettings", () => {
 		}
 	});
 
-	it("drops blank rows on submit", async () => {
+	it("shows empty state when no links exist", async () => {
+		mockFetchSettings.mockResolvedValue({
+			title: "Empty Blog",
+			identity: { type: "Organization", links: [] },
+		});
+
 		const screen = await renderSocialSettings();
-		const addLinkBtn = screen.getByRole("button", { name: "Add Link" });
-		await userEvent.click(addLinkBtn);
+		await expect.element(screen.getByText("No profile links yet")).toBeInTheDocument();
+	});
 
-		// Now we have 3 rows, but 3rd row is completely empty
-		const labelInputs = screen.getByLabelText("Platform / Label");
-		await expect.poll(() => labelInputs.elements()).toHaveLength(3);
+	it("adds a profile link via modal and enables save action", async () => {
+		const screen = await renderSocialSettings();
+		const addBtn = screen.getByRole("button", { name: "Add Profile Link" });
+		await userEvent.click(addBtn);
 
-		// Modify first row so form is dirty
-		await screen.getByLabelText("URL").first().fill("https://x.com/new_handle");
+		const dialog = page.getByRole("dialog");
+		await expect.element(dialog).toBeVisible();
+
+		// Platform defaults to GitHub; fill GitHub handle or URL
+		const handleInput = dialog.getByLabelText("Handle or URL");
+		await handleInput.fill("https://github.com/test_user");
+
+		const modalAddBtn = dialog.getByRole("button", { name: "Add", exact: true });
+		modalAddBtn.element().click();
+
+		await expect.element(page.getByText("https://github.com/test_user")).toBeInTheDocument();
 
 		const saveBtn = screen.getByRole("button", { name: "Save", exact: true }).first();
-		await userEvent.click(saveBtn);
+		await expect.element(saveBtn).toBeEnabled();
+		await saveBtn.click();
 
 		await vi.waitFor(() => {
 			expect(mockUpdateSettings).toHaveBeenCalledWith({
-				socialLinks: [
-					expect.objectContaining({ url: "https://x.com/new_handle" }),
-					expect.objectContaining({ url: "https://github.com/example" }),
-				],
+				identity: expect.objectContaining({
+					links: expect.arrayContaining([
+						expect.objectContaining({ value: "https://github.com/test_user" }),
+					]),
+				}),
 			});
 		});
 	});
 
-	it("shows validation error on partly filled rows", async () => {
+	it("deletes a profile link and saves successfully", async () => {
 		const screen = await renderSocialSettings();
-		const addLinkBtn = screen.getByRole("button", { name: "Add Link" });
-		await userEvent.click(addLinkBtn);
-
-		const labelInputs = screen.getByLabelText("Platform / Label");
-		await labelInputs.nth(2).fill("Mastodon");
-		// URL left blank
+		const deleteButtons = screen.getByRole("button", { name: "Delete" });
+		await userEvent.click(deleteButtons.first());
 
 		const saveBtn = screen.getByRole("button", { name: "Save", exact: true }).first();
-		await userEvent.click(saveBtn);
-
-		expect(mockUpdateSettings).not.toHaveBeenCalled();
-		await expect.element(screen.getByText("URL is required")).toBeInTheDocument();
-	});
-
-	it("enables both save actions when dirty and returns to saved after a header save", async () => {
-		const screen = await renderSocialSettings();
-		await screen.getByLabelText("URL").first().fill("https://x.com/new_handle");
-
-		const dirtyButtons = screen.getByRole("button", { name: "Save", exact: true });
-		await expect.poll(() => dirtyButtons.elements()).toHaveLength(2);
-		for (const button of [dirtyButtons.first(), dirtyButtons.nth(1)]) {
-			await expect.element(button).toBeEnabled();
-		}
-
-		await userEvent.click(dirtyButtons.first());
-		await vi.waitFor(() => {
-			expect(mockUpdateSettings).toHaveBeenCalledWith(
-				expect.objectContaining({
-					socialLinks: expect.arrayContaining([
-						expect.objectContaining({
-							url: "https://x.com/new_handle",
-						}),
-					]),
-				}),
-			);
-		});
-		await expect.element(screen.getByText("Social links saved")).toBeInTheDocument();
-
-		const savedButtons = screen.getByRole("button", { name: "Saved", exact: true });
-		await expect.poll(() => savedButtons.elements()).toHaveLength(2);
-		for (const button of [savedButtons.first(), savedButtons.nth(1)]) {
-			await expect.element(button).toBeDisabled();
-		}
-	});
-
-	it("keeps cached social links visible when the post-save refetch fails", async () => {
-		mockUpdateSettings.mockImplementation(async (settings) => {
-			mockFetchSettings.mockRejectedValue(new Error("Settings refetch failed"));
-			return settings;
-		});
-		const screen = await renderSocialSettings();
-		await screen.getByLabelText("URL").first().fill("https://x.com/refetch_test");
-
-		await userEvent.click(screen.getByRole("button", { name: "Save", exact: true }).first());
-
-		await vi.waitFor(() => expect(mockFetchSettings.mock.calls.length).toBeGreaterThanOrEqual(2));
-		await expect
-			.element(screen.getByLabelText("URL").first())
-			.toHaveValue("https://x.com/refetch_test");
-		expect(screen.getByRole("alert").query()).toBeNull();
-	});
-
-	it("submits changes from the bottom save action", async () => {
-		const screen = await renderSocialSettings();
-		await screen.getByLabelText("URL").nth(1).fill("https://github.com/new_user");
-
-		const saveButtons = screen.getByRole("button", { name: "Save", exact: true });
-		await userEvent.click(saveButtons.nth(1));
-
-		await vi.waitFor(() => {
-			expect(mockUpdateSettings).toHaveBeenCalledWith(
-				expect.objectContaining({
-					socialLinks: expect.arrayContaining([
-						expect.objectContaining({
-							url: "https://github.com/new_user",
-						}),
-					]),
-				}),
-			);
-		});
-	});
-
-	it("keeps the form dirty and reports a failed save", async () => {
-		mockUpdateSettings.mockRejectedValue(new Error("Could not persist settings"));
-		const screen = await renderSocialSettings();
-		await screen.getByLabelText("URL").first().fill("https://x.com/fail_test");
-
-		await userEvent.click(screen.getByRole("button", { name: "Save", exact: true }).first());
-		await expect.element(screen.getByText("Failed to save settings")).toBeInTheDocument();
-		await expect.element(screen.getByText("Could not persist settings")).toBeInTheDocument();
-
-		const dirtyButtons = screen.getByRole("button", { name: "Save", exact: true });
-		await expect.poll(() => dirtyButtons.elements()).toHaveLength(2);
-		for (const button of [dirtyButtons.first(), dirtyButtons.nth(1)]) {
-			await expect.element(button).toBeEnabled();
-		}
-	});
-
-	it('adds, edits, and removes links with rel="me" verification', async () => {
-		const screen = await renderSocialSettings();
-
-		// Click "Add Link"
-		const addLinkBtn = screen.getByRole("button", { name: "Add Link" });
-		await userEvent.click(addLinkBtn);
-
-		// Fill in the new 3rd link
-		const labelInputs = screen.getByLabelText("Platform / Label");
-		const urlInputs = screen.getByLabelText("URL");
-
-		await labelInputs.nth(2).fill("Mastodon");
-		await urlInputs.nth(2).fill("https://mastodon.social/@alice");
-
-		// Save should become dirty and clickable
-		const saveBtn = screen.getByRole("button", { name: "Save", exact: true }).first();
+		await expect.element(saveBtn).toBeEnabled();
 		await userEvent.click(saveBtn);
 
 		await vi.waitFor(() => {
-			expect(mockUpdateSettings).toHaveBeenCalledWith(
-				expect.objectContaining({
-					socialLinks: expect.arrayContaining([
-						expect.objectContaining({
-							label: "Mastodon",
-							url: "https://mastodon.social/@alice",
-							relMe: true,
-						}),
-					]),
+			expect(mockUpdateSettings).toHaveBeenCalledWith({
+				identity: expect.objectContaining({
+					links: [expect.objectContaining({ value: "https://github.com/example" })],
 				}),
-			);
+			});
 		});
-
-		// Now remove the newly added link
-		const removeBtn = screen.getByRole("button", { name: "Remove Mastodon" });
-		await userEvent.click(removeBtn);
-
-		// Ensure it's removed
-		await expect.poll(() => screen.getByLabelText("Platform / Label").elements()).toHaveLength(2);
-	});
-
-	it("shows empty state when no links exist", async () => {
-		mockFetchSettings.mockResolvedValue({
-			title: "Empty Blog",
-			socialLinks: [],
-		});
-
-		const screen = await renderSocialSettings();
-		await expect
-			.element(
-				screen.getByText(
-					'No social links configured yet. Click "Add Link" to add your first profile.',
-				),
-			)
-			.toBeInTheDocument();
 	});
 });
