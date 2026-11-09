@@ -26,35 +26,38 @@ test.describe("Social Settings", () => {
 		// Page heading
 		await expect(page.locator("h1")).toContainText("Social Links");
 
-		// Should show the social profiles section
-		await expect(page.locator("text=Social Profiles")).toBeVisible({ timeout: 10000 });
+		// Should show publisher identity and profiles sections
+		await expect(page.locator("text=Publisher Identity")).toBeVisible({ timeout: 10000 });
+		await expect(page.locator("text=Profiles & Links")).toBeVisible({ timeout: 10000 });
 	});
 
-	test("displays all social input fields", async ({ admin, page }) => {
+	test("adds and saves a profile link with modal and persists across reload", async ({
+		admin,
+		page,
+	}) => {
 		await admin.goto("/settings/social");
 		await admin.waitForShell();
 		await admin.waitForLoading();
 
-		// Each social field should have a visible input with its label
-		for (const label of ["Twitter", "GitHub", "Facebook", "Instagram", "LinkedIn", "YouTube"]) {
-			await expect(page.locator(`label:has-text("${label}")`)).toBeVisible({ timeout: 5000 });
-		}
+		const testHandle = `e2e_user_${Date.now()}`;
 
-		await expect(page.getByRole("button", { name: "Saved", exact: true }).first()).toBeVisible();
-	});
+		// Click "Add Profile Link"
+		await page.getByRole("button", { name: "Add Profile Link" }).click();
 
-	test("saves a social link and persists across reload", async ({ admin, page }) => {
-		await admin.goto("/settings/social");
-		await admin.waitForShell();
-		await admin.waitForLoading();
+		const dialog = page.locator('[role="dialog"]').filter({ hasText: "Add Profile Link" });
+		await expect(dialog).toBeVisible();
 
-		const testHandle = `@e2e-test-${Date.now()}`;
+		// Fill handle
+		await dialog.getByLabel("Handle or URL").fill(testHandle);
 
-		// Fill the first social input field (Twitter)
-		const firstInput = page.locator("form input").first();
-		await firstInput.fill(testHandle);
+		// Add link via modal action
+		await dialog.getByRole("button", { name: "Add" }).click();
+		await expect(dialog).not.toBeVisible();
 
-		// Wait for the save response
+		// Check link is in list
+		await expect(page.locator(`text=${testHandle}`)).toBeVisible();
+
+		// Save settings form
 		const saveResponse = page.waitForResponse(
 			(res) =>
 				SETTINGS_API_PATTERN.test(res.url()) &&
@@ -66,17 +69,44 @@ test.describe("Social Settings", () => {
 		await page.getByRole("button", { name: "Save", exact: true }).first().click();
 		await saveResponse;
 
-		// Success banner should appear
-		await expect(page.locator("text=Social links saved")).toBeVisible({ timeout: 5000 });
-
 		// Reload the page
 		await admin.goto("/settings/social");
 		await admin.waitForShell();
 		await admin.waitForLoading();
 
-		// The value should persist
-		const firstInputAfterReload = page.locator("form input").first();
-		await expect(firstInputAfterReload).toHaveValue(testHandle, { timeout: 10000 });
+		// The value should persist in the list
+		await expect(page.locator(`text=${testHandle}`)).toBeVisible({ timeout: 10000 });
+	});
+
+	test("adds a custom link requiring label and saves successfully", async ({
+		admin,
+		page,
+	}) => {
+		await admin.goto("/settings/social");
+		await admin.waitForShell();
+		await admin.waitForLoading();
+
+		await page.getByRole("button", { name: "Add Profile Link" }).click();
+		const dialog = page.locator('[role="dialog"]').filter({ hasText: "Add Profile Link" });
+		await expect(dialog).toBeVisible();
+
+		// Change platform to Custom URL
+		await dialog.getByRole("combobox", { name: "Platform" }).click();
+		await page.getByRole("option", { name: "Custom URL" }).click();
+
+		// Label is required: clicking Add with empty label shows error
+		await dialog.getByLabel("URL, Handle, or ID").fill("https://example.com/portfolio");
+		await dialog.getByRole("button", { name: "Add" }).click();
+		await expect(dialog.getByText("Label is required for custom links")).toBeVisible();
+
+		// Fill label and submit
+		await dialog.getByLabel("Link Label").fill("My Portfolio");
+		await dialog.getByRole("button", { name: "Add" }).click();
+		await expect(dialog).not.toBeVisible();
+
+		// Custom link with label is displayed in the list
+		await expect(page.locator("text=My Portfolio")).toBeVisible();
+		await expect(page.locator("text=https://example.com/portfolio")).toBeVisible();
 	});
 });
 
