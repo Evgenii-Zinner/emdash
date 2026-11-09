@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import { PLATFORM_URL_DOMAINS, validateProfileLinkValue } from "@emdash-cms/admin";
+
+export { PLATFORM_URL_DOMAINS, validateProfileLinkValue };
+
 const HTTP_SCHEME_RE = /^https?:\/\//i;
 const FORBIDDEN_SCHEME_RE = /^(javascript|data|vbscript|file):/i;
 
@@ -17,102 +21,6 @@ export const profileLinkValue = z
 			.max(2048, "Value exceeds maximum 2048 characters")
 			.refine((val) => !FORBIDDEN_SCHEME_RE.test(val), "Dangerous URI scheme not permitted"),
 	);
-
-const HTTP_URL_PATTERN = /^https?:\/\//i;
-
-export const PLATFORM_URL_DOMAINS: Record<string, string[]> = {
-	github: ["github.com"],
-	twitter: ["x.com", "twitter.com"],
-	telegram: ["t.me", "telegram.me"],
-	bluesky: ["bsky.app"],
-	threads: ["threads.net"],
-	instagram: ["instagram.com"],
-	tiktok: ["tiktok.com"],
-	youtube: ["youtube.com", "youtu.be"],
-	linkedin: ["linkedin.com"],
-	facebook: ["facebook.com", "fb.com"],
-	reddit: ["reddit.com"],
-};
-
-export function validateProfileLinkValue(platform: string, value: string): string | null {
-	const trimmed = value.trim();
-	if (!trimmed) return "Value cannot be empty";
-
-	// 1. Custom links: allow any non-empty value, only blocking dangerous schemes
-	if (platform === "custom") {
-		if (FORBIDDEN_SCHEME_RE.test(trimmed)) {
-			return "Dangerous URI scheme not permitted";
-		}
-		return null;
-	}
-
-	// 2. WeChat (handle-only): MUST NOT be a URL, no spaces, 3-32 chars
-	if (platform === "wechat") {
-		if (trimmed.includes("://") || HTTP_URL_PATTERN.test(trimmed)) {
-			return "WeChat ID must be a handle only, not a URL";
-		}
-		if (/\s/.test(trimmed)) {
-			return "WeChat ID cannot contain spaces";
-		}
-		if (!/^[a-zA-Z0-9_-]{3,32}$/.test(trimmed)) {
-			return "WeChat ID must be 3-32 letters, numbers, hyphens, or underscores";
-		}
-		return null;
-	}
-
-	// 3. If a full URL is provided for any named platform:
-	if (HTTP_URL_PATTERN.test(trimmed) || trimmed.includes("://")) {
-		try {
-			const parsed = new URL(trimmed);
-			if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-				return "URL must use http or https scheme";
-			}
-			const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
-			const allowedHosts = PLATFORM_URL_DOMAINS[platform];
-			if (allowedHosts && !allowedHosts.some((h) => host === h || host.endsWith(`.${h}`))) {
-				return `URL must be a ${allowedHosts[0]} URL for ${platform}`;
-			}
-			return null;
-		} catch {
-			return "Invalid URL format";
-		}
-	}
-
-	// 4. Handle format validation (handles cannot contain spaces)
-	if (/\s/.test(trimmed)) {
-		return "Handle cannot contain spaces";
-	}
-
-	const cleanHandle = trimmed.replace(/^@/, "");
-
-	if (platform === "github") {
-		if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/.test(cleanHandle)) {
-			return "GitHub handle must be 1-39 letters, numbers, or hyphens";
-		}
-	} else if (platform === "twitter") {
-		if (!/^[a-zA-Z0-9_]{1,15}$/.test(cleanHandle)) {
-			return "X/Twitter handle must be 1-15 letters, numbers, or underscores";
-		}
-	} else if (platform === "telegram") {
-		if (!/^[a-zA-Z0-9_]{5,32}$/.test(cleanHandle)) {
-			return "Telegram handle must be 5-32 letters, numbers, or underscores";
-		}
-	} else if (platform === "bluesky") {
-		if (
-			!/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(cleanHandle) &&
-			!/^[a-zA-Z0-9_]{1,64}$/.test(cleanHandle)
-		) {
-			return "Bluesky handle must be e.g. user.bsky.social";
-		}
-	} else if (platform === "mastodon") {
-		const match = cleanHandle.match(/^([^@\s]+)@([^@\s]+\.[a-zA-Z]{2,})$/);
-		if (!match) {
-			return "Mastodon handle must be @user@instance (e.g. @user@mastodon.social) or a full profile URL";
-		}
-	}
-
-	return null;
-}
 
 export const profileLinkInputSchema = z
 	.object({

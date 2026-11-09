@@ -69,6 +69,19 @@ function extractAuthorSameAs(profileLinks?: unknown): string[] | undefined {
 	return urls.length > 0 ? urls : undefined;
 }
 
+function extractSiteSameAs(socialLinks?: SocialLink[]): string[] | undefined {
+	if (!socialLinks) return undefined;
+	const urls = socialLinks
+		.filter(
+			(l) =>
+				(l as any).sameAs !== false &&
+				typeof l.url === "string" &&
+				/^https?:\/\//i.test(l.url.trim()),
+		)
+		.map((l) => l.url.trim());
+	return urls.length > 0 ? urls : undefined;
+}
+
 export function buildBlogPostingJsonLd(
 	page: PublicPageContext,
 	defaultOgImage?: string | null,
@@ -115,39 +128,25 @@ export function buildBlogPostingJsonLd(
 		}
 	}
 
-	let authorNode: unknown;
-	if (bylineList.length === 1) {
-		const sameAs = extractAuthorSameAs(bylineList[0]!.profileLinks);
-		authorNode = {
+	const toPerson = (name: string, profileLinks?: unknown[]) => {
+		const sameAs = extractAuthorSameAs(profileLinks);
+		return {
 			"@type": "Person",
-			name: bylineList[0]!.name,
+			name,
 			...(sameAs ? { sameAs } : {}),
 		};
-	} else if (bylineList.length > 1) {
-		authorNode = bylineList.map((b) => {
-			const sameAs = extractAuthorSameAs(b.profileLinks);
-			return {
-				"@type": "Person",
-				name: b.name,
-				...(sameAs ? { sameAs } : {}),
-			};
-		});
-	} else if (authors.length === 1) {
-		authorNode = { "@type": "Person", name: authors[0] };
-	} else if (authors.length > 1) {
-		authorNode = authors.map((name) => ({ "@type": "Person", name }));
+	};
+
+	let authorNode: unknown;
+	if (bylineList.length > 0) {
+		const people = bylineList.map((b) => toPerson(b.name, b.profileLinks));
+		authorNode = people.length === 1 ? people[0] : people;
+	} else if (authors.length > 0) {
+		const people = authors.map((name) => ({ "@type": "Person", name }));
+		authorNode = people.length === 1 ? people[0] : people;
 	}
 
-	const sameAs = socialLinks
-		? socialLinks
-				.filter(
-					(l) =>
-						(l as any).sameAs !== false &&
-						typeof l.url === "string" &&
-						/^https?:\/\//i.test(l.url.trim()),
-				)
-				.map((l) => l.url.trim())
-		: undefined;
+	const sameAs = extractSiteSameAs(socialLinks);
 
 	return cleanJsonLd({
 		"@context": "https://schema.org",
@@ -190,17 +189,7 @@ export function buildWebSiteJsonLd(
 	if (!siteName) return null;
 
 	const siteUrl = siteOrigin(page);
-
-	const sameAs = socialLinks
-		? socialLinks
-				.filter(
-					(l) =>
-						(l as any).sameAs !== false &&
-						typeof l.url === "string" &&
-						/^https?:\/\//i.test(l.url.trim()),
-				)
-				.map((l) => l.url.trim())
-		: undefined;
+	const sameAs = extractSiteSameAs(socialLinks);
 
 	return cleanJsonLd({
 		"@context": "https://schema.org",

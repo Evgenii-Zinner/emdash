@@ -141,6 +141,8 @@ export {
 
 // Settings
 export {
+	PLATFORM_URL_DOMAINS,
+	validateProfileLinkValue,
 	type SiteIdentity,
 	type ProfileLink,
 	type PostalAddress,

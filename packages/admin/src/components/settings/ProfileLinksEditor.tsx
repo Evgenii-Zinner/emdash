@@ -1,10 +1,10 @@
 import { Badge, Button, Input, LayerDialog, Select, Switch } from "@cloudflare/kumo";
 import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { CaretDown, CaretUp, Plus, ShareNetwork, Trash } from "@phosphor-icons/react";
+import { Plus, ShareNetwork, Trash } from "@phosphor-icons/react";
 import * as React from "react";
 
-import type { ProfileLink } from "../../lib/api/settings.js";
+import { type ProfileLink, validateProfileLinkValue } from "../../lib/api/settings.js";
 
 export const BUILTIN_PLATFORMS = [
 	{ value: "github", label: msg`GitHub`, urlPrefix: "https://github.com/" },
@@ -59,106 +59,7 @@ function getPlatformPlaceholder(platform: string, t: (...args: any[]) => string)
 	}
 }
 
-const HTTP_URL_PATTERN = /^https?:\/\//i;
-const FORBIDDEN_SCHEME_RE = /^(javascript|data|vbscript|file):/i;
 
-const PLATFORM_URL_DOMAINS: Record<string, string[]> = {
-	github: ["github.com"],
-	twitter: ["x.com", "twitter.com"],
-	telegram: ["t.me", "telegram.me"],
-	bluesky: ["bsky.app"],
-	threads: ["threads.net"],
-	instagram: ["instagram.com"],
-	tiktok: ["tiktok.com"],
-	youtube: ["youtube.com", "youtu.be"],
-	linkedin: ["linkedin.com"],
-	facebook: ["facebook.com", "fb.com"],
-	reddit: ["reddit.com"],
-};
-
-function validatePlatformHandleOrUrl(
-	platform: string,
-	value: string,
-	t: (...args: any[]) => string,
-): string | null {
-	const trimmed = value.trim();
-	if (!trimmed) return t`Please enter a handle or URL`;
-
-	// 1. Custom links: allow any non-empty value, only blocking dangerous schemes
-	if (platform === "custom") {
-		if (FORBIDDEN_SCHEME_RE.test(trimmed)) {
-			return t`Dangerous URI scheme not permitted`;
-		}
-		return null;
-	}
-
-	// 2. WeChat (handle-only): MUST NOT be a URL, no spaces, 3-32 chars
-	if (platform === "wechat") {
-		if (trimmed.includes("://") || HTTP_URL_PATTERN.test(trimmed)) {
-			return t`WeChat ID must be a handle only, not a URL`;
-		}
-		if (/\s/.test(trimmed)) {
-			return t`WeChat ID cannot contain spaces`;
-		}
-		if (!/^[a-zA-Z0-9_-]{3,32}$/.test(trimmed)) {
-			return t`WeChat ID must be 3-32 letters, numbers, hyphens, or underscores`;
-		}
-		return null;
-	}
-
-	// 3. If a full URL is provided for any named platform:
-	if (HTTP_URL_PATTERN.test(trimmed) || trimmed.includes("://")) {
-		try {
-			const parsed = new URL(trimmed);
-			if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-				return t`URL must use http or https scheme`;
-			}
-			const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
-			const allowedHosts = PLATFORM_URL_DOMAINS[platform];
-			if (allowedHosts && !allowedHosts.some((h) => host === h || host.endsWith(`.${h}`))) {
-				return t`URL must be a ${allowedHosts[0]} URL for ${platform}`;
-			}
-			return null;
-		} catch {
-			return t`Invalid URL format`;
-		}
-	}
-
-	// 4. Handle format validation (handles cannot contain spaces)
-	if (/\s/.test(trimmed)) {
-		return t`Handle cannot contain spaces`;
-	}
-
-	const cleanHandle = trimmed.replace(/^@/, "");
-
-	if (platform === "github") {
-		if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/.test(cleanHandle)) {
-			return t`GitHub handle must be 1-39 letters, numbers, or hyphens`;
-		}
-	} else if (platform === "twitter") {
-		if (!/^[a-zA-Z0-9_]{1,15}$/.test(cleanHandle)) {
-			return t`X/Twitter handle must be 1-15 letters, numbers, or underscores`;
-		}
-	} else if (platform === "telegram") {
-		if (!/^[a-zA-Z0-9_]{5,32}$/.test(cleanHandle)) {
-			return t`Telegram handle must be 5-32 letters, numbers, or underscores`;
-		}
-	} else if (platform === "bluesky") {
-		if (
-			!/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(cleanHandle) &&
-			!/^[a-zA-Z0-9_]{1,64}$/.test(cleanHandle)
-		) {
-			return t`Bluesky handle must be e.g. user.bsky.social`;
-		}
-	} else if (platform === "mastodon") {
-		const match = cleanHandle.match(/^([^@\s]+)@([^@\s]+\.[a-zA-Z]{2,})$/);
-		if (!match) {
-			return t`Mastodon handle must be @user@instance (e.g. @user@mastodon.social) or a full profile URL`;
-		}
-	}
-
-	return null;
-}
 
 function createEmptyDraft(): ProfileLink {
 	return {
@@ -242,7 +143,7 @@ export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps)
 			return;
 		}
 
-		const error = validatePlatformHandleOrUrl(modalDraft.platform, modalDraft.value, t);
+		const error = validateProfileLinkValue(modalDraft.platform, modalDraft.value, (msg) => t(msg));
 		if (error) {
 			setModalError(error);
 			return;
@@ -266,16 +167,6 @@ export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps)
 		}
 
 		setIsModalOpen(false);
-	};
-
-	const handleMove = (index: number, direction: "up" | "down") => {
-		const targetIndex = direction === "up" ? index - 1 : index + 1;
-		if (targetIndex < 0 || targetIndex >= links.length) return;
-		const updated = [...links];
-		const temp = updated[index]!;
-		updated[index] = updated[targetIndex]!;
-		updated[targetIndex] = temp;
-		onChange(updated);
 	};
 
 	const handleDelete = (index: number) => {
@@ -338,26 +229,6 @@ export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps)
 									</div>
 								</div>
 								<div className="flex shrink-0 items-center gap-1.5">
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										aria-label={t`Move up`}
-										disabled={index === 0}
-										onClick={() => handleMove(index, "up")}
-									>
-										<CaretUp className="h-4 w-4" />
-									</Button>
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										aria-label={t`Move down`}
-										disabled={index === links.length - 1}
-										onClick={() => handleMove(index, "down")}
-									>
-										<CaretDown className="h-4 w-4" />
-									</Button>
 									<Button
 										type="button"
 										variant="outline"
