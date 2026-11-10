@@ -76,7 +76,7 @@ function createEmptyDraft(): ProfileLink {
 }
 
 export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps) {
-	const { t } = useLingui();
+	const { t, i18n } = useLingui();
 
 	const [isModalOpen, setIsModalOpen] = React.useState(false);
 	const [editingIndex, setEditingIndex] = React.useState<number | null>(null);
@@ -143,7 +143,7 @@ export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps)
 			return;
 		}
 
-		const error = validateProfileLinkValue(modalDraft.platform, modalDraft.value, (msg) => t(msg));
+		const error = validateProfileLinkValue(modalDraft.platform, modalDraft.value, (msg) => i18n._(msg));
 		if (error) {
 			setModalError(error);
 			return;
