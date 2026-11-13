@@ -36,7 +36,7 @@ import { peekSeoPanel } from "./seo-panel.js";
 export function generateBaseSeoContributions(
 	page: PublicPageContext,
 	defaultOgImage?: string | null,
-	socialLinks?: SocialLink[],
+	socialLinks?: Array<ProfileLink | SocialLink>,
 ): PageMetadataContribution[] {
 	const contributions: PageMetadataContribution[] = [];
 

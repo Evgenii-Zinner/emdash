@@ -75,33 +75,43 @@ describe("EmDashHead", () => {
 		expect(html).not.toContain("noindex");
 	});
 
-	it('renders rel="me" links for verified social profiles and populates sameAs in JSON-LD', async () => {
+	it('renders rel="me" links for verified social profiles and populates sameAs on publisher JSON-LD', async () => {
 		const html = await render(
 			{
-				socialLinks: [
-					{
-						id: "mastodon",
-						platform: "mastodon",
-						label: "Mastodon",
-						url: "https://mastodon.social/@alice",
-						relMe: true,
-					},
-					{
-						id: "github",
-						platform: "github",
-						label: "GitHub",
-						url: "https://github.com/alice",
-						relMe: true,
-					},
-					{
-						id: "internal",
-						label: "Internal",
-						url: "https://example.com/alice",
-						relMe: false,
-					},
-				],
+				identity: {
+					type: "Organization",
+					links: [
+						{
+							id: "mastodon",
+							platform: "mastodon",
+							label: "Mastodon",
+							value: "https://mastodon.social/@alice",
+							sameAs: true,
+							relMe: true,
+						},
+						{
+							id: "github",
+							platform: "github",
+							label: "GitHub",
+							value: "https://github.com/alice",
+							sameAs: true,
+							relMe: true,
+						},
+						{
+							id: "internal",
+							platform: "custom",
+							label: "Internal",
+							value: "https://example.com/alice",
+							sameAs: false,
+							relMe: false,
+						},
+					],
+				},
 			},
 			runtimeWithPluginMetadata([]),
+			{
+				pageType: "article",
+			},
 		);
 
 		expect(html).toContain('<link rel="me" href="https://mastodon.social/@alice">');

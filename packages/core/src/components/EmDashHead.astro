@@ -104,7 +104,7 @@ if (runtime) {
 	const baseContributions: PageMetadataContribution[] = generateBaseSeoContributions(
 		resolvedPage,
 		defaultOgImage,
-		siteSettings.socialLinks,
+		siteSettings.identity?.links ?? siteSettings.socialLinks,
 	);
 
 	// hreflang alternates for translated content entries (#1690). Only

@@ -6,6 +6,7 @@
  */
 
 import { resolveProfileUrl } from "../identity/index.js";
+import type { ProfileLink } from "../identity/types.js";
 import type { PublicPageContext } from "../plugins/types.js";
 import type { SocialLink } from "../settings/types.js";
 
@@ -64,28 +65,35 @@ function extractAuthorSameAs(profileLinks?: unknown): string[] | undefined {
 	const urls = profileLinks
 		.filter((l) => l && typeof l === "object" && l.sameAs !== false && l.platform !== "wechat")
 		.map((l) => resolveProfileUrl(l.platform ?? "custom", l.value ?? l.url) || l.value || l.url)
-		.filter((url) => typeof url === "string" && /^https?:\/\//i.test(url.trim()))
+		.filter((url) => typeof url === "string" && /^https:\/\//i.test(url.trim()))
 		.map((url) => url.trim());
 	return urls.length > 0 ? urls : undefined;
 }
 
-function extractSiteSameAs(socialLinks?: SocialLink[]): string[] | undefined {
-	if (!socialLinks) return undefined;
-	const urls = socialLinks
-		.filter(
-			(l) =>
-				(l as any).sameAs !== false &&
-				typeof l.url === "string" &&
-				/^https?:\/\//i.test(l.url.trim()),
-		)
-		.map((l) => l.url.trim());
+function extractSiteSameAs(links?: Array<ProfileLink | SocialLink>): string[] | undefined {
+	if (!links) return undefined;
+	const urls = links
+		.filter((l) => {
+			if (!l || typeof l !== "object") return false;
+			if ("sameAs" in l && l.sameAs === false) return false;
+			if (l.platform === "wechat") return false;
+			return true;
+		})
+		.map((l) => {
+			if ("value" in l) {
+				return resolveProfileUrl(l.platform ?? "custom", l.value) || l.value;
+			}
+			return l.url;
+		})
+		.filter((url): url is string => typeof url === "string" && /^https:\/\//i.test(url.trim()))
+		.map((url) => url.trim());
 	return urls.length > 0 ? urls : undefined;
 }
 
 export function buildBlogPostingJsonLd(
 	page: PublicPageContext,
 	defaultOgImage?: string | null,
-	socialLinks?: SocialLink[],
+	socialLinks?: Array<ProfileLink | SocialLink>,
 ): Record<string, unknown> | null {
 	if (page.pageType !== "article" || !page.canonical) return null;
 
@@ -183,13 +191,12 @@ export function buildBlogPostingJsonLd(
  */
 export function buildWebSiteJsonLd(
 	page: PublicPageContext,
-	socialLinks?: SocialLink[],
+	_socialLinks?: Array<ProfileLink | SocialLink>,
 ): Record<string, unknown> | null {
 	const siteName = page.siteName;
 	if (!siteName) return null;
 
 	const siteUrl = siteOrigin(page);
-	const sameAs = extractSiteSameAs(socialLinks);
 
 	return cleanJsonLd({
 		"@context": "https://schema.org",
@@ -197,6 +204,5 @@ export function buildWebSiteJsonLd(
 		"@id": `${siteUrl}/#website`,
 		name: siteName,
 		url: siteUrl,
-		sameAs: sameAs && sameAs.length > 0 ? sameAs : undefined,
 	});
 }
