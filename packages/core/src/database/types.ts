@@ -294,6 +294,7 @@ export interface UserTable {
 	role: number; // RoleLevel: 10=SUBSCRIBER, 20=CONTRIBUTOR, 30=AUTHOR, 40=EDITOR, 50=ADMIN
 	email_verified: number; // 0 or 1
 	data: string | null; // JSON
+	profile_links?: string | null; // JSON array of ProfileLink
 	disabled: Generated<number>; // 0 or 1
 	created_at: Generated<string>;
 	updated_at: Generated<string>;

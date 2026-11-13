@@ -16,6 +16,7 @@ import { BylineRepository } from "../../src/database/repositories/byline.js";
 import { ContentRepository } from "../../src/database/repositories/content.js";
 import { TaxonomyRepository } from "../../src/database/repositories/taxonomy.js";
 import type { ContentBylineCredit } from "../../src/database/repositories/types.js";
+import { UserRepository } from "../../src/database/repositories/user.js";
 import { setI18nConfig } from "../../src/i18n/config.js";
 import { emdashLoader, FOLDED_BYLINES, FOLDED_TERMS } from "../../src/loader.js";
 import { runWithContext } from "../../src/request-context.js";
@@ -374,5 +375,71 @@ describeEachDialect("loader hydration fold", (dialect) => {
 		expect(read<FoldedByline[]>(data, FOLDED_BYLINES)).toEqual([]);
 		expect(data.bylines).toEqual([]);
 		expect(data.byline).toBeNull();
+	});
+
+	it("folds user profileLinks for user-linked bylines and ignores byline profileLinks", async () => {
+		// eslint-disable-next-line typescript/no-explicit-any -- schema type vs Database type
+		const db = ctx.db as any;
+		const users = new UserRepository(db);
+		const bylines = new BylineRepository(db);
+		const content = new ContentRepository(db);
+
+		const user = await users.create({
+			email: "fold-user@example.com",
+			name: "Fold User",
+			role: "author",
+			profileLinks: [
+				{
+					id: "u-gh",
+					platform: "github",
+					value: "fold-user",
+					relMe: true,
+					sameAs: true,
+				},
+			],
+		});
+
+		const linkedByline = await bylines.create({
+			displayName: "Fold User",
+			slug: "fold-user",
+			userId: user.id,
+			profileLinks: [
+				{
+					id: "ignored",
+					platform: "twitter",
+					value: "ignored",
+					relMe: false,
+					sameAs: true,
+				},
+			],
+		});
+
+		const post = await content.create({
+			type: "post",
+			slug: "user-linked-fold",
+			data: { title: "User linked fold" },
+			locale: "en",
+		});
+		await db.updateTable("ec_post").set({ status: "published" }).where("id", "=", post.id).execute();
+		await bylines.setContentBylines("post", post.id, [
+			{ bylineId: linkedByline.id, roleLabel: "Author" },
+		]);
+
+		const loader = emdashLoader();
+		const result = await runWithContext({ editMode: false, db: ctx.db }, () =>
+			loader.loadEntry({ filter: { type: "post", id: "user-linked-fold" } }),
+		);
+		// eslint-disable-next-line typescript/no-explicit-any -- loader result union
+		const data = (result as any).data as { bylines: ContentBylineCredit[] };
+		expect(data.bylines[0]?.byline.profileLinks).toEqual([
+			{
+				id: "u-gh",
+				platform: "github",
+				label: "GitHub",
+				value: "fold-user",
+				relMe: true,
+				sameAs: true,
+			},
+		]);
 	});
 });

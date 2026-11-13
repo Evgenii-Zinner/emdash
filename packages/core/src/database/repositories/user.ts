@@ -1,11 +1,22 @@
 import type { Kysely, Selectable, Updateable } from "kysely";
 import { ulid } from "ulidx";
 
+import { normalizeProfileLinks } from "../../identity/links.js";
+import type { ProfileLink, ProfileLinkInput } from "../../identity/types.js";
 import { chunks, SQL_BATCH_SIZE } from "../../utils/chunks.js";
 import type { Database, UserTable } from "../types.js";
 import { encodeCursor, decodeCursor, type FindManyResult } from "./types.js";
 
 type UserRow = Selectable<UserTable>;
+
+function parseUserProfileLinks(raw: string | null | undefined): ProfileLink[] | null {
+	if (!raw) return null;
+	try {
+		return normalizeProfileLinks(JSON.parse(raw));
+	} catch {
+		return [];
+	}
+}
 
 /**
  * Valid role levels matching the database schema.
@@ -24,6 +35,7 @@ export interface User {
 	avatarUrl: string | null;
 	emailVerified: boolean;
 	data: Record<string, unknown> | null;
+	profileLinks: ProfileLink[] | null;
 	createdAt: string;
 }
 
@@ -33,6 +45,7 @@ export interface CreateUserInput {
 	role?: UserRole | UserRoleName;
 	avatarUrl?: string;
 	data?: Record<string, unknown>;
+	profileLinks?: (ProfileLink | ProfileLinkInput)[] | null;
 }
 
 export interface UpdateUserInput {
@@ -40,6 +53,7 @@ export interface UpdateUserInput {
 	role?: UserRole | UserRoleName;
 	avatarUrl?: string | null;
 	data?: Record<string, unknown>;
+	profileLinks?: (ProfileLink | ProfileLinkInput)[] | null;
 }
 
 /**
@@ -62,6 +76,10 @@ export class UserRepository {
 			avatar_url: input.avatarUrl ?? null,
 			email_verified: 0,
 			data: input.data ? JSON.stringify(input.data) : null,
+			profile_links:
+				input.profileLinks !== undefined && input.profileLinks !== null
+					? JSON.stringify(normalizeProfileLinks(input.profileLinks))
+					: null,
 		};
 
 		await this.db.insertInto("users").values(row).execute();
@@ -173,6 +191,12 @@ export class UserRepository {
 		if (input.role !== undefined) updates.role = UserRepository.resolveRole(input.role);
 		if (input.avatarUrl !== undefined) updates.avatar_url = input.avatarUrl;
 		if (input.data !== undefined) updates.data = JSON.stringify(input.data);
+		if (input.profileLinks !== undefined) {
+			updates.profile_links =
+				input.profileLinks !== null
+					? JSON.stringify(normalizeProfileLinks(input.profileLinks))
+					: null;
+		}
 
 		if (Object.keys(updates).length > 0) {
 			await this.db.updateTable("users").set(updates).where("id", "=", id).execute();
@@ -229,6 +253,7 @@ export class UserRepository {
 			avatarUrl: row.avatar_url,
 			emailVerified: row.email_verified === 1,
 			data: row.data ? JSON.parse(row.data) : null,
+			profileLinks: parseUserProfileLinks(row.profile_links),
 			createdAt: row.created_at,
 		};
 	}

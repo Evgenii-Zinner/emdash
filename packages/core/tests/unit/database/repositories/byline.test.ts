@@ -8,6 +8,7 @@ import {
 import { BylineRepository } from "../../../../src/database/repositories/byline.js";
 import { ContentRepository } from "../../../../src/database/repositories/content.js";
 import { EmDashValidationError } from "../../../../src/database/repositories/types.js";
+import { UserRepository } from "../../../../src/database/repositories/user.js";
 import type { Database } from "../../../../src/database/types.js";
 import { peekRequestCache } from "../../../../src/request-cache.js";
 import { runWithContext } from "../../../../src/request-context.js";
@@ -116,6 +117,91 @@ describe("BylineRepository", () => {
 		});
 		expect(cleared?.jobTitle).toBeNull();
 		expect(cleared?.profileLinks).toBeNull();
+	});
+
+	it("takes profileLinks from the linked user across queries and clears them when unlinked", async () => {
+		const userRepo = new UserRepository(db);
+		const user = await userRepo.create({
+			email: "linked-author@example.com",
+			name: "Linked Author",
+			role: "author",
+			profileLinks: [
+				{
+					id: "user-gh",
+					platform: "github",
+					value: "linked-author",
+					sameAs: true,
+					relMe: true,
+				},
+			],
+		});
+
+		const linkedByline = await bylineRepo.create({
+			slug: "linked-author",
+			displayName: "Linked Author",
+			userId: user.id,
+			profileLinks: [
+				{
+					id: "stale-byline-link",
+					platform: "twitter",
+					value: "should-be-ignored",
+					sameAs: true,
+					relMe: true,
+				},
+			],
+		});
+
+		const guestByline = await bylineRepo.create({
+			slug: "guest-author",
+			displayName: "Guest Author",
+			isGuest: true,
+			profileLinks: [
+				{
+					id: "guest-gh",
+					platform: "github",
+					value: "guest-author",
+					sameAs: true,
+					relMe: false,
+				},
+			],
+		});
+
+		const loadedLinked = await bylineRepo.findById(linkedByline.id);
+		expect(loadedLinked?.profileLinks).toEqual([
+			expect.objectContaining({ id: "user-gh", platform: "github", value: "linked-author" }),
+		]);
+
+		const loadedGuest = await bylineRepo.findById(guestByline.id);
+		expect(loadedGuest?.profileLinks).toEqual([
+			expect.objectContaining({ id: "guest-gh", platform: "github", value: "guest-author" }),
+		]);
+
+		const content = await contentRepo.create({
+			type: "post",
+			slug: "linked-user-post",
+			data: { title: "Linked User Post" },
+		});
+		await bylineRepo.setContentBylines("post", content.id, [{ bylineId: linkedByline.id }]);
+
+		const credits = await bylineRepo.getContentBylines("post", content.id);
+		expect(credits[0]?.byline.profileLinks).toEqual([
+			expect.objectContaining({ id: "user-gh", value: "linked-author" }),
+		]);
+
+		const batchCredits = await bylineRepo.getContentBylinesMany("post", [content.id]);
+		expect(batchCredits.get(content.id)?.[0]?.byline.profileLinks).toEqual([
+			expect.objectContaining({ id: "user-gh", value: "linked-author" }),
+		]);
+
+		const byUserMap = await bylineRepo.findByUserIds([user.id]);
+		expect(byUserMap.get(user.id)?.profileLinks).toEqual([
+			expect.objectContaining({ id: "user-gh", value: "linked-author" }),
+		]);
+
+		// Unlink the byline and clear its own column -> no longer carries user's links
+		await bylineRepo.update(linkedByline.id, { userId: null, profileLinks: null });
+		const unlinked = await bylineRepo.findById(linkedByline.id);
+		expect(unlinked?.profileLinks).toBeNull();
 	});
 
 	it("supports updates and paginated listing", async () => {

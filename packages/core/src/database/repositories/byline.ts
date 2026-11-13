@@ -102,6 +102,7 @@ type BylineRowWithAvatar = BylineRow & {
 	avatar_alt?: string | null;
 	avatar_blurhash?: string | null;
 	avatar_dominant_color?: string | null;
+	user_profile_links?: string | null;
 };
 
 export interface CreateBylineInput {
@@ -188,6 +189,8 @@ function parseProfileLinks(raw: string | null | undefined): ProfileLink[] | null
 }
 
 function rowToByline(row: BylineRowWithAvatar): BylineSummary {
+	const rawProfileLinks =
+		row.user_id !== null && row.user_id !== undefined ? row.user_profile_links : row.profile_links;
 	return {
 		id: row.id,
 		slug: row.slug,
@@ -206,7 +209,7 @@ function rowToByline(row: BylineRowWithAvatar): BylineSummary {
 		locale: row.locale,
 		translationGroup: row.translation_group,
 		jobTitle: row.job_title ?? null,
-		profileLinks: parseProfileLinks(row.profile_links),
+		profileLinks: parseProfileLinks(rawProfileLinks),
 	};
 }
 
@@ -566,12 +569,14 @@ export class BylineRepository {
 		return this.db
 			.selectFrom("_emdash_bylines as b")
 			.leftJoin("media as m", "m.id", "b.avatar_media_id")
+			.leftJoin("users as u", "u.id", "b.user_id")
 			.selectAll("b")
 			.select([
 				"m.storage_key as avatar_storage_key",
 				"m.alt as avatar_alt",
 				"m.blurhash as avatar_blurhash",
 				"m.dominant_color as avatar_dominant_color",
+				"u.profile_links as user_profile_links",
 			]);
 	}
 
@@ -630,10 +635,12 @@ export class BylineRepository {
 		const limit = Math.min(Math.max(options?.limit ?? 50, 1), 100);
 
 		let query = this.db
-			.selectFrom("_emdash_bylines")
-			.selectAll()
-			.orderBy("created_at", "desc")
-			.orderBy("id", "desc")
+			.selectFrom("_emdash_bylines as b")
+			.leftJoin("users as u", "u.id", "b.user_id")
+			.selectAll("b")
+			.select(["u.profile_links as user_profile_links"])
+			.orderBy("b.created_at", "desc")
+			.orderBy("b.id", "desc")
 			.limit(limit + 1);
 
 		if (options?.search) {
@@ -643,28 +650,28 @@ export class BylineRepository {
 				.replaceAll("_", "\\_");
 			const term = `%${escaped}%`;
 			query = query.where((eb) =>
-				eb.or([eb("display_name", "like", term), eb("slug", "like", term)]),
+				eb.or([eb("b.display_name", "like", term), eb("b.slug", "like", term)]),
 			);
 		}
 
 		if (options?.isGuest !== undefined) {
-			query = query.where("is_guest", "=", options.isGuest ? 1 : 0);
+			query = query.where("b.is_guest", "=", options.isGuest ? 1 : 0);
 		}
 
 		if (options?.userId !== undefined) {
-			query = query.where("user_id", "=", options.userId);
+			query = query.where("b.user_id", "=", options.userId);
 		}
 
 		if (options?.locale !== undefined) {
-			query = query.where(localeMatches("locale", options.locale));
+			query = query.where(localeMatches("b.locale", options.locale));
 		}
 
 		if (options?.cursor) {
 			const decoded = decodeCursor(options.cursor);
 			query = query.where((eb) =>
 				eb.or([
-					eb("created_at", "<", decoded.orderValue),
-					eb.and([eb("created_at", "=", decoded.orderValue), eb("id", "<", decoded.id)]),
+					eb("b.created_at", "<", decoded.orderValue),
+					eb.and([eb("b.created_at", "=", decoded.orderValue), eb("b.id", "<", decoded.id)]),
 				]),
 			);
 		}
@@ -701,10 +708,12 @@ export class BylineRepository {
 	 */
 	async findByTranslationGroup(translationGroup: string): Promise<BylineSummary[]> {
 		const rows = await this.db
-			.selectFrom("_emdash_bylines")
-			.selectAll()
-			.where("translation_group", "=", translationGroup)
-			.orderBy("locale", "asc")
+			.selectFrom("_emdash_bylines as b")
+			.leftJoin("users as u", "u.id", "b.user_id")
+			.selectAll("b")
+			.select(["u.profile_links as user_profile_links"])
+			.where("b.translation_group", "=", translationGroup)
+			.orderBy("b.locale", "asc")
 			.execute();
 		return this.withCustomFields(rows);
 	}
@@ -1037,6 +1046,7 @@ export class BylineRepository {
 			.selectFrom("_emdash_content_bylines as cb")
 			.innerJoin("_emdash_bylines as b", "b.translation_group", "cb.byline_id")
 			.leftJoin("media as m", "m.id", "b.avatar_media_id")
+			.leftJoin("users as u", "u.id", "b.user_id")
 			.select([
 				"cb.sort_order as sort_order",
 				"cb.role_label as role_label",
@@ -1058,6 +1068,7 @@ export class BylineRepository {
 				"b.translation_group as translation_group",
 				"b.job_title as job_title",
 				"b.profile_links as profile_links",
+				"u.profile_links as user_profile_links",
 			])
 			.where("cb.collection_slug", "=", collectionSlug)
 			.where("cb.content_id", "=", contentId)
@@ -1090,6 +1101,7 @@ export class BylineRepository {
 			translation_group: row.translation_group,
 			job_title: row.job_title,
 			profile_links: row.profile_links,
+			user_profile_links: row.user_profile_links,
 		}));
 		const hydrated = await this.withCustomFields(bylineRows);
 		return rows.map((row, i) => {
@@ -1181,6 +1193,7 @@ export class BylineRepository {
 				.selectFrom("_emdash_content_bylines as cb")
 				.innerJoin("_emdash_bylines as b", "b.translation_group", "cb.byline_id")
 				.leftJoin("media as m", "m.id", "b.avatar_media_id")
+				.leftJoin("users as u", "u.id", "b.user_id")
 				.select([
 					"cb.content_id as content_id",
 					"cb.sort_order as sort_order",
@@ -1203,6 +1216,7 @@ export class BylineRepository {
 					"b.translation_group as translation_group",
 					"b.job_title as job_title",
 					"b.profile_links as profile_links",
+					"u.profile_links as user_profile_links",
 				])
 				.where("cb.collection_slug", "=", collectionSlug)
 				.where("cb.content_id", "in", chunk)
@@ -1232,6 +1246,7 @@ export class BylineRepository {
 				translation_group: row.translation_group,
 				job_title: row.job_title,
 				profile_links: row.profile_links,
+				user_profile_links: row.user_profile_links,
 			}));
 
 			// When `skipHydration` is set, return BylineSummary objects with
@@ -1295,6 +1310,7 @@ export class BylineRepository {
 			let query = this.db
 				.selectFrom("_emdash_bylines as b")
 				.leftJoin("media as m", "m.id", "b.avatar_media_id")
+				.leftJoin("users as u", "u.id", "b.user_id")
 				.select([
 					"b.id as id",
 					"b.slug as slug",
@@ -1314,6 +1330,7 @@ export class BylineRepository {
 					"b.translation_group as translation_group",
 					"b.job_title as job_title",
 					"b.profile_links as profile_links",
+					"u.profile_links as user_profile_links",
 				])
 				.where("b.user_id", "in", chunk);
 			if (options?.locale !== undefined)

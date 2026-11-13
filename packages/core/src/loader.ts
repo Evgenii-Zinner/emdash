@@ -200,7 +200,7 @@ function foldedHydrationSelects(db: Kysely<any>, type: string, outer: string) {
 		: sql`(SELECT ${termAgg} FROM ${sql.ref("content_taxonomies")} AS ct LEFT JOIN ${sql.ref("taxonomies")} AS exact_term ON exact_term.translation_group = ct.taxonomy_id AND exact_term.locale = ${o}.locale LEFT JOIN ${sql.ref("taxonomies")} AS default_term ON default_term.translation_group = ct.taxonomy_id AND default_term.locale = ${defaultLocale} WHERE ct.collection = ${type} AND ct.entry_id = ${o}.translation_group) AS ${sql.ref("_emdash_terms")}`;
 
 	const bylineInner = obj(
-		"'id', b.id, 'slug', b.slug, 'displayName', b.display_name, 'bio', b.bio, 'avatarMediaId', b.avatar_media_id, 'avatarStorageKey', m.storage_key, 'avatarAlt', m.alt, 'avatarBlurhash', m.blurhash, 'avatarDominantColor', m.dominant_color, 'websiteUrl', b.website_url, 'userId', b.user_id, 'isGuest', b.is_guest, 'createdAt', b.created_at, 'updatedAt', b.updated_at, 'locale', b.locale, 'translationGroup', b.translation_group, 'jobTitle', b.job_title, 'profileLinks', b.profile_links",
+		"'id', b.id, 'slug', b.slug, 'displayName', b.display_name, 'bio', b.bio, 'avatarMediaId', b.avatar_media_id, 'avatarStorageKey', m.storage_key, 'avatarAlt', m.alt, 'avatarBlurhash', m.blurhash, 'avatarDominantColor', m.dominant_color, 'websiteUrl', b.website_url, 'userId', b.user_id, 'isGuest', b.is_guest, 'createdAt', b.created_at, 'updatedAt', b.updated_at, 'locale', b.locale, 'translationGroup', b.translation_group, 'jobTitle', b.job_title, 'profileLinks', CASE WHEN b.user_id IS NOT NULL THEN u.profile_links ELSE b.profile_links END",
 	);
 	const creditObj = pg
 		? sql.raw(
@@ -220,19 +220,20 @@ function foldedHydrationSelects(db: Kysely<any>, type: string, outer: string) {
 			ORDER BY ${storedLocaleOrder("candidate.locale")}, candidate.id LIMIT 1
 		)
 		LEFT JOIN ${sql.ref("media")} AS m ON m.id = b.avatar_media_id
+		LEFT JOIN ${sql.ref("users")} AS u ON u.id = b.user_id
 		WHERE cb.collection_slug = ${type} AND cb.content_id = ${o}.id)`
-		: sql`(SELECT ${agg(credit)} FROM ${sql.ref("_emdash_content_bylines")} AS cb ${foldJoin} ${sql.ref("_emdash_bylines")} AS b ON b.translation_group = cb.byline_id LEFT JOIN ${sql.ref("media")} AS m ON m.id = b.avatar_media_id WHERE cb.collection_slug = ${type} AND cb.content_id = ${o}.id AND b.locale = ${o}.locale)`;
+		: sql`(SELECT ${agg(credit)} FROM ${sql.ref("_emdash_content_bylines")} AS cb ${foldJoin} ${sql.ref("_emdash_bylines")} AS b ON b.translation_group = cb.byline_id LEFT JOIN ${sql.ref("media")} AS m ON m.id = b.avatar_media_id LEFT JOIN ${sql.ref("users")} AS u ON u.id = b.user_id WHERE cb.collection_slug = ${type} AND cb.content_id = ${o}.id AND b.locale = ${o}.locale)`;
 	// The author fallback for an entry with no explicit credit: the byline
 	// linked to its author in its locale. Without aliases `(user_id, locale)`
 	// is unique, so this is one index probe per row and matches
 	// `findByUserIds` exactly; with them, the same canonical-locale match and
 	// ordering as the credits above picks one.
 	const author = hasLocaleAliases
-		? sql`(SELECT ${bylineInner} FROM ${sql.ref("_emdash_bylines")} AS b LEFT JOIN ${sql.ref("media")} AS m ON m.id = b.avatar_media_id
+		? sql`(SELECT ${bylineInner} FROM ${sql.ref("_emdash_bylines")} AS b LEFT JOIN ${sql.ref("media")} AS m ON m.id = b.avatar_media_id LEFT JOIN ${sql.ref("users")} AS u ON u.id = b.user_id
 		WHERE b.user_id = ${o}.author_id
 			AND ${canonicalLocaleColumn("b.locale")} = ${canonicalLocaleColumn(`${outer}.locale`)}
 		ORDER BY ${storedLocaleOrder("b.locale")}, b.id LIMIT 1)`
-		: sql`(SELECT ${bylineInner} FROM ${sql.ref("_emdash_bylines")} AS b LEFT JOIN ${sql.ref("media")} AS m ON m.id = b.avatar_media_id WHERE b.user_id = ${o}.author_id AND b.locale = ${o}.locale LIMIT 1)`;
+		: sql`(SELECT ${bylineInner} FROM ${sql.ref("_emdash_bylines")} AS b LEFT JOIN ${sql.ref("media")} AS m ON m.id = b.avatar_media_id LEFT JOIN ${sql.ref("users")} AS u ON u.id = b.user_id WHERE b.user_id = ${o}.author_id AND b.locale = ${o}.locale LIMIT 1)`;
 	// Both ride in one result column: D1 caps a result set at 100 columns and
 	// the entry read is budgeted to the column, so folding them together keeps
 	// its width unchanged. SQLite's `json()` keeps each subquery's JSON text
