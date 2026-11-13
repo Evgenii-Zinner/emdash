@@ -7,6 +7,7 @@ import { msg } from "@lingui/core/macro";
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 
 import { apiFetch, onForbiddenResponse, parseApiResponse } from "./client.js";
+import type { ProfileLink } from "./settings.js";
 
 export interface CurrentUser {
 	id: string;
@@ -15,11 +16,27 @@ export interface CurrentUser {
 	role: number;
 	avatarUrl?: string;
 	isFirstLogin?: boolean;
+	profileLinks?: ProfileLink[] | null;
 }
 
 async function fetchCurrentUser(): Promise<CurrentUser> {
 	const response = await apiFetch("/_emdash/api/auth/me");
 	return parseApiResponse<CurrentUser>(response, i18n._(msg`Failed to fetch user`));
+}
+
+export async function updateCurrentUserProfileLinks(
+	profileLinks: ProfileLink[],
+): Promise<ProfileLink[]> {
+	const response = await apiFetch("/_emdash/api/auth/me", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ action: "setProfileLinks", profileLinks }),
+	});
+	const result = await parseApiResponse<{ profileLinks?: ProfileLink[] | null }>(
+		response,
+		i18n._(msg`Failed to update profile links`),
+	);
+	return result.profileLinks ?? [];
 }
 
 export function useCurrentUser() {

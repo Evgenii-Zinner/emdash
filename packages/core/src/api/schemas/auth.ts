@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { profileLinkInputSchema } from "../../identity/schemas.js";
 import { roleLevel } from "./common.js";
 
 // ---------------------------------------------------------------------------
@@ -121,5 +122,6 @@ export const passkeyRenameBody = z
 export const authMeActionBody = z
 	.object({
 		action: z.string().min(1),
+		profileLinks: z.array(profileLinkInputSchema).max(50).optional(),
 	})
 	.meta({ id: "AuthMeActionBody" });

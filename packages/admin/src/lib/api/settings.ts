@@ -145,6 +145,8 @@ export interface OrganizationPolicies {
 	correctionsPolicy?: string;
 	ethicsPolicy?: string;
 	diversityPolicy?: string;
+	ownershipFundingInfo?: string;
+	actionableFeedbackPolicy?: string;
 }
 
 export interface SiteIdentity {
@@ -153,16 +155,29 @@ export interface SiteIdentity {
 	alternateName?: string;
 	url?: string;
 	description?: string;
-	logo?: { mediaId: string; url?: string; alt?: string };
+	email?: string;
+	telephone?: string;
+	logo?: {
+		mediaId: string;
+		url?: string;
+		alt?: string;
+		contentType?: string;
+		width?: number;
+		height?: number;
+	};
 	image?: { mediaId: string; url?: string; alt?: string };
 	links?: ProfileLink[];
 	address?: PostalAddress;
+	areaServed?: string[];
+	foundingDate?: string;
 	identifiers?: OrganizationIdentifier[];
 	policies?: OrganizationPolicies;
 	parentOrganization?: {
 		name: string;
 		url?: string;
 	};
+	jobTitle?: string;
+	bylineId?: string;
 }
 
 export interface SiteSettings {
