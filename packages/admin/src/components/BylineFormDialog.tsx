@@ -368,7 +368,9 @@ export function BylineFormDialog({
 		if (form.jobTitle?.trim()) {
 			values.jobTitle = form.jobTitle.trim();
 		}
-		values.profileLinks = form.profileLinks ?? [];
+		if (!form.userId) {
+			values.profileLinks = form.profileLinks ?? [];
+		}
 		// Without field definitions the custom-field inputs aren't shown, so
 		// leave stored values untouched rather than echoing them back. A new
 		// byline only sends custom fields that were filled in.
@@ -492,10 +494,16 @@ export function BylineFormDialog({
 								title={t`Profile links`}
 								help={t`Social and external profiles for author identity and verification (rel="me").`}
 							>
-								<ProfileLinksEditor
-									links={form.profileLinks}
-									onChange={(links) => setForm((prev) => ({ ...prev, profileLinks: links }))}
-								/>
+								{form.userId ? (
+									<p className="text-sm text-kumo-subtle">
+										{t`This byline is linked to a user account. Profile links are inherited from the user's Profile settings across all locales.`}
+									</p>
+								) : (
+									<ProfileLinksEditor
+										links={form.profileLinks}
+										onChange={(links) => setForm((prev) => ({ ...prev, profileLinks: links }))}
+									/>
+								)}
 							</DialogSection>
 							<DialogSection
 								title={t`Attribution`}
