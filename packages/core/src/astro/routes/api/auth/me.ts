@@ -13,7 +13,7 @@ import { apiError, apiSuccess, handleError } from "#api/error.js";
 import { isParseError, parseBody } from "#api/parse.js";
 import { authMeActionBody } from "#api/schemas.js";
 import { UserRepository } from "#db/repositories/user.js";
-import { normalizeProfileLinks, validateProfileLinks } from "#identity/links.js";
+import { normalizeProfileLinks, validateProfileLinks } from "../../../../identity/links.js";
 import { invalidateBylineObjectCache } from "../../../../object-cache/index.js";
 
 export const GET: APIRoute = async ({ locals }) => {
