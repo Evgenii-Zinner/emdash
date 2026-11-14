@@ -220,17 +220,17 @@ export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps)
 										<span className="font-medium text-kumo-default">{platformLabel}</span>
 										{link.relMe && (
 											<Badge variant="info">
-												rel="me"
+												<bdi dir="ltr">rel="me"</bdi>
 											</Badge>
 										)}
 										{link.sameAs !== false && link.platform !== "wechat" && (
 											<Badge variant="neutral">
-												sameAs
+												<bdi dir="ltr">sameAs</bdi>
 											</Badge>
 										)}
 									</div>
 									<div className="mt-0.5 truncate font-mono text-sm text-kumo-subtle">
-										{link.value}
+										<bdi dir="ltr">{link.value}</bdi>
 									</div>
 								</div>
 								<div className="flex shrink-0 items-center gap-1.5">

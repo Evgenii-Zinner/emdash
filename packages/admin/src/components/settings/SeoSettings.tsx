@@ -718,6 +718,7 @@ export function SeoSettings() {
 											}
 										/>
 										<Input
+											dir="ltr"
 											label={t`Postal Code`}
 											placeholder={t`ZIP or Postcode`}
 											value={identityView.address?.postalCode ?? ""}
