@@ -51,6 +51,29 @@ function siteOrigin(page: PublicPageContext): string {
 	}
 }
 
+function extractSameAsUrls(links: unknown): string[] | undefined {
+	if (!Array.isArray(links)) return undefined;
+	const urls = links
+		.filter(
+			(link): link is { platform?: string; value?: string; url?: string; sameAs?: boolean } =>
+				Boolean(
+					link &&
+						typeof link === "object" &&
+						link.sameAs !== false &&
+						link.platform !== "wechat",
+				),
+		)
+		.map((link) => {
+			if (typeof link.value === "string") {
+				return resolveProfileUrl(link.platform ?? "custom", link.value) || link.value;
+			}
+			return link.url;
+		})
+		.filter((url): url is string => typeof url === "string" && /^https:\/\//i.test(url.trim()))
+		.map((url) => url.trim());
+	return urls.length > 0 ? urls : undefined;
+}
+
 /**
  * Build a BlogPosting JSON-LD graph from page context.
  * Used for article-type content pages.
@@ -59,37 +82,8 @@ function siteOrigin(page: PublicPageContext): string {
  * @param defaultOgImage - Optional site-wide fallback image URL, used when
  *   the page has no own OG image. Matches the fallback applied to `og:image`
  *   in `generateBaseSeoContributions`.
+ * @param socialLinks - Optional site profile links used to populate publisher `sameAs`.
  */
-function extractAuthorSameAs(profileLinks?: unknown): string[] | undefined {
-	if (!Array.isArray(profileLinks)) return undefined;
-	const urls = profileLinks
-		.filter((l) => l && typeof l === "object" && l.sameAs !== false && l.platform !== "wechat")
-		.map((l) => resolveProfileUrl(l.platform ?? "custom", l.value ?? l.url) || l.value || l.url)
-		.filter((url) => typeof url === "string" && /^https:\/\//i.test(url.trim()))
-		.map((url) => url.trim());
-	return urls.length > 0 ? urls : undefined;
-}
-
-function extractSiteSameAs(links?: Array<ProfileLink | SocialLink>): string[] | undefined {
-	if (!links) return undefined;
-	const urls = links
-		.filter((l) => {
-			if (!l || typeof l !== "object") return false;
-			if ("sameAs" in l && l.sameAs === false) return false;
-			if (l.platform === "wechat") return false;
-			return true;
-		})
-		.map((l) => {
-			if ("value" in l) {
-				return resolveProfileUrl(l.platform ?? "custom", l.value) || l.value;
-			}
-			return l.url;
-		})
-		.filter((url): url is string => typeof url === "string" && /^https:\/\//i.test(url.trim()))
-		.map((url) => url.trim());
-	return urls.length > 0 ? urls : undefined;
-}
-
 export function buildBlogPostingJsonLd(
 	page: PublicPageContext,
 	defaultOgImage?: string | null,
@@ -137,7 +131,7 @@ export function buildBlogPostingJsonLd(
 	}
 
 	const toPerson = (name: string, profileLinks?: unknown[]) => {
-		const sameAs = extractAuthorSameAs(profileLinks);
+		const sameAs = extractSameAsUrls(profileLinks);
 		return {
 			"@type": "Person",
 			name,
@@ -154,7 +148,7 @@ export function buildBlogPostingJsonLd(
 		authorNode = people.length === 1 ? people[0] : people;
 	}
 
-	const sameAs = extractSiteSameAs(socialLinks);
+	const sameAs = extractSameAsUrls(socialLinks);
 
 	return cleanJsonLd({
 		"@context": "https://schema.org",
@@ -184,10 +178,9 @@ export function buildBlogPostingJsonLd(
 
 /**
  * Build a WebSite JSON-LD graph from page context.
- * Used for non-article pages (homepage, listing pages, etc.)
+ * Used for non-article pages (homepage, listing pages, etc.).
  *
  * @param page - Page context for the current request.
- * @param socialLinks - Optional list of site social profiles used to populate Schema.org `sameAs`.
  */
 export function buildWebSiteJsonLd(
 	page: PublicPageContext,

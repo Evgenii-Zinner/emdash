@@ -6,6 +6,7 @@ import * as React from "react";
 
 import { type ProfileLink, validateProfileLinkValue } from "../../lib/api/settings.js";
 
+/** Built-in profile link platforms supported by the admin editor. */
 export const BUILTIN_PLATFORMS = [
 	{ value: "github", label: msg`GitHub`, urlPrefix: "https://github.com/" },
 	{ value: "twitter", label: msg`X (Twitter)`, urlPrefix: "https://x.com/" },
@@ -22,6 +23,7 @@ export const BUILTIN_PLATFORMS = [
 	{ value: "custom", label: msg`Custom URL`, urlPrefix: "" },
 ] as const;
 
+/** Props for the ProfileLinksEditor component. */
 export interface ProfileLinksEditorProps {
 	links: ProfileLink[];
 	onChange: (links: ProfileLink[]) => void;
@@ -75,6 +77,10 @@ function createEmptyDraft(): ProfileLink {
 	};
 }
 
+/**
+ * Editor for managing structured profile links with platform detection and
+ * `sameAs` / `rel="me"` metadata switches.
+ */
 export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps) {
 	const { t, i18n } = useLingui();
 
@@ -103,7 +109,6 @@ export function ProfileLinksEditor({ links, onChange }: ProfileLinksEditorProps)
 		setModalError(null);
 		let nextPlatform = modalDraft.platform;
 
-		// Auto-detect platform when pasting URLs if custom or default
 		if (val && (nextPlatform === "custom" || !nextPlatform)) {
 			const lower = val.trim().toLowerCase();
 			if (lower.includes("github.com")) nextPlatform = "github";

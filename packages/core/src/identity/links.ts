@@ -169,6 +169,7 @@ export function mergeLegacySocialPatchIntoIdentityLinks(
 	return normalizeProfileLinks(links);
 }
 
+/** Converts ProfileLinks into legacy SocialLink items with resolved URLs. */
 export function profileLinksToSocialLinks(links: ProfileLink[]): SocialLink[] {
 	return links.map((l) => ({
 		id: l.id,
@@ -179,6 +180,7 @@ export function profileLinksToSocialLinks(links: ProfileLink[]): SocialLink[] {
 	}));
 }
 
+/** Converts legacy SocialLink items into ProfileLink records. */
 export function socialLinksToProfileLinks(links: SocialLink[]): ProfileLink[] {
 	return links.map((l) => ({
 		id: l.id,

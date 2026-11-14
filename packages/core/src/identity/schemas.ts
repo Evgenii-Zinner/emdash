@@ -22,6 +22,7 @@ export const profileLinkValue = z
 			.refine((val) => !FORBIDDEN_SCHEME_RE.test(val), "Dangerous URI scheme not permitted"),
 	);
 
+/** Input schema for validating a profile link at API boundaries. */
 export const profileLinkInputSchema = z
 	.object({
 		id: z.string().max(64).optional(),
@@ -53,8 +54,10 @@ export const profileLinkInputSchema = z
 		}
 	});
 
+/** Normalized profile link validation schema. */
 export const profileLinkSchema = profileLinkInputSchema;
 
+/** Response schema for serialized profile links. */
 export const profileLinkResponseSchema = z.object({
 	id: z.string(),
 	platform: z.string(),
@@ -64,19 +67,22 @@ export const profileLinkResponseSchema = z.object({
 	relMe: z.boolean(),
 });
 
+/** Schema for Schema.org PostalAddress fields (`addressCountry` is ISO 3166-1 alpha-2). */
 export const postalAddressSchema = z.object({
 	streetAddress: z.string().max(200).optional(),
 	postalCode: z.string().max(32).optional(),
 	addressLocality: z.string().max(100).optional(),
 	addressRegion: z.string().max(100).optional(),
-	addressCountry: z.string().max(2).optional(), // ISO 3166-1 alpha-2
+	addressCountry: z.string().max(2).optional(),
 });
 
+/** Schema for organization business registration identifiers. */
 export const organizationIdentifierSchema = z.object({
 	propertyID: z.string().min(1).max(100),
 	value: z.string().min(1).max(200),
 });
 
+/** Schema for organization editorial/corrections policy URLs. */
 export const organizationPoliciesSchema = z.object({
 	publishingPrinciples: z.string().url().max(2048).optional(),
 	correctionsPolicy: z.string().url().max(2048).optional(),
@@ -86,11 +92,13 @@ export const organizationPoliciesSchema = z.object({
 	actionableFeedbackPolicy: z.string().url().max(2048).optional(),
 });
 
+/** Input schema for site identity media references. */
 export const mediaReferenceInputSchema = z.object({
 	mediaId: z.string(),
 	alt: z.string().optional(),
 });
 
+/** Response schema for resolved site identity media references. */
 export const mediaReferenceResponseSchema = z.object({
 	mediaId: z.string(),
 	alt: z.string().optional(),
@@ -100,6 +108,7 @@ export const mediaReferenceResponseSchema = z.object({
 	height: z.number().int().optional(),
 });
 
+/** Input schema for writing `site:identity`. */
 export const siteIdentityInputSchema = z.object({
 	type: z.enum(["Organization", "Person"]).default("Organization"),
 	name: z.string().max(200).optional(),
@@ -119,6 +128,7 @@ export const siteIdentityInputSchema = z.object({
 	links: z.array(profileLinkInputSchema).max(50).optional().default([]),
 });
 
+/** Response schema for reading `site:identity`. */
 export const siteIdentityResponseSchema = z.object({
 	type: z.enum(["Organization", "Person"]),
 	name: z.string().optional(),

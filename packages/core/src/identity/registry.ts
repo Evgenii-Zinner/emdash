@@ -190,7 +190,6 @@ const PLATFORMS: Record<string, PlatformDefinition> = {
 			const trimmed = raw.trim();
 			if (!trimmed) return null;
 			if (HTTP_URL_RE.test(trimmed)) return trimmed;
-			// Pattern @user@instance.social or user@instance.social
 			const match = trimmed.replace(/^@/, "").match(/^([^@]+)@([^@]+)$/);
 			if (match) {
 				const [, user, instance] = match;
@@ -219,7 +218,6 @@ const PLATFORMS: Record<string, PlatformDefinition> = {
 		iconName: "wechat",
 		placeholder: "WeChat ID (handle only)",
 		handleOnly: true,
-		// No URL builder: WeChat has no public web profile, so values never reach sameAs or rel="me"
 	},
 	telegram: {
 		key: "telegram",
@@ -292,6 +290,7 @@ const PLATFORMS: Record<string, PlatformDefinition> = {
 	},
 };
 
+/** Legacy `site:social` platform keys synced alongside `site:identity`. */
 export const LEGACY_PLATFORM_KEYS = [
 	"twitter",
 	"github",
@@ -301,12 +300,15 @@ export const LEGACY_PLATFORM_KEYS = [
 	"youtube",
 ] as const;
 
+/** Union type of legacy social platform keys. */
 export type LegacyPlatformKey = (typeof LEGACY_PLATFORM_KEYS)[number];
 
+/** Looks up a platform definition by key (case-insensitive). */
 export function getPlatform(key: string): PlatformDefinition | undefined {
 	return PLATFORMS[key.toLowerCase()];
 }
 
+/** Returns all registered platform definitions. */
 export function getAllPlatforms(): PlatformDefinition[] {
 	return Object.values(PLATFORMS);
 }
