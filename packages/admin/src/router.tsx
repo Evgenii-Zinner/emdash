@@ -19,6 +19,7 @@ import {
 	createRouter,
 	createRootRouteWithContext,
 	createRoute,
+	redirect,
 	Outlet,
 	Link,
 	useParams,
@@ -67,9 +68,9 @@ import { BackupSettings } from "./components/settings/BackupSettings";
 import { EmailSettings } from "./components/settings/EmailSettings";
 import { GeneralSettings } from "./components/settings/GeneralSettings";
 import { MediaUsageSettings } from "./components/settings/MediaUsageSettings";
+import { ProfileSettings } from "./components/settings/ProfileSettings";
 import { SecuritySettings } from "./components/settings/SecuritySettings";
 import { SeoSettings } from "./components/settings/SeoSettings";
-import { SocialSettings } from "./components/settings/SocialSettings";
 import { TransferSettings } from "./components/settings/TransferSettings";
 import { SetupWizard } from "./components/SetupWizard";
 import { Shell } from "./components/Shell";
@@ -2606,14 +2607,20 @@ const generalSettingsRoute = createRoute({
 	component: GeneralSettings,
 });
 
-// Social settings route
+const profileSettingsRoute = createRoute({
+	getParentRoute: () => adminLayoutRoute,
+	path: "/settings/profile",
+	component: ProfileSettings,
+});
+
 const socialSettingsRoute = createRoute({
 	getParentRoute: () => adminLayoutRoute,
 	path: "/settings/social",
-	component: SocialSettings,
+	beforeLoad: () => {
+		throw redirect({ to: "/settings/seo", replace: true });
+	},
 });
 
-// SEO settings route
 const seoSettingsRoute = createRoute({
 	getParentRoute: () => adminLayoutRoute,
 	path: "/settings/seo",
@@ -3291,6 +3298,7 @@ const adminRoutes = adminLayoutRoute.addChildren([
 	settingsRoute,
 	mediaUsageSettingsRoute,
 	generalSettingsRoute,
+	profileSettingsRoute,
 	socialSettingsRoute,
 	seoSettingsRoute,
 	securitySettingsRoute,

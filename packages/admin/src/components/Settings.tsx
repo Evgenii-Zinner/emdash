@@ -2,7 +2,7 @@ import { Combobox, inputVariants } from "@cloudflare/kumo";
 import { useLingui } from "@lingui/react/macro";
 import {
 	Gear,
-	ShareNetwork,
+	User,
 	MagnifyingGlass,
 	Shield,
 	Globe,
@@ -55,16 +55,16 @@ export function Settings() {
 						description={t`Site identity, logo, favicon, and reading preferences`}
 					/>
 					<SettingsNavRow
-						to="/settings/social"
-						icon={<ShareNetwork className="h-5 w-5" />}
-						title={t`Social Links`}
-						description={t`Social media profile links`}
-					/>
-					<SettingsNavRow
 						to="/settings/seo"
 						icon={<MagnifyingGlass className="h-5 w-5" />}
 						title={t`SEO`}
-						description={t`Search engine optimization and verification`}
+						description={t`Publisher identity, social links, search engine optimization, and verification`}
+					/>
+					<SettingsNavRow
+						to="/settings/profile"
+						icon={<User className="h-5 w-5" />}
+						title={t`Profile`}
+						description={t`Manage your public author profile links`}
 					/>
 				</SettingsSection>
 

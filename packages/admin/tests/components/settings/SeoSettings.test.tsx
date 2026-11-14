@@ -1,7 +1,7 @@
 import { Toasty } from "@cloudflare/kumo";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import type { MediaItem, SiteSettings, SiteSettingsUpdate } from "../../../src/lib/api";
 import { render } from "../../utils/render";
@@ -314,6 +314,94 @@ describe("SeoSettings", () => {
 			expect(mockUpdateSettings).toHaveBeenCalledWith(
 				expect.objectContaining({
 					seo: expect.objectContaining({ defaultOgImage: null }),
+				}),
+			);
+		});
+	});
+
+	it("renders publisher identity, allows adding a profile link, and saves sanitized identity", async () => {
+		mockFetchSettings.mockResolvedValue({
+			...defaultSettings,
+			identity: {
+				type: "Organization",
+				name: "My Blog",
+				links: [
+					{
+						id: "twitter",
+						platform: "twitter",
+						value: "https://x.com/example",
+						sameAs: true,
+						relMe: true,
+					},
+				],
+			},
+		});
+		const screen = await renderSeoSettings();
+
+		await expect.element(screen.getByText("Public", { exact: true })).toBeInTheDocument();
+		await expect.element(screen.getByText("https://x.com/example")).toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("button", { name: "Add Profile Link" }));
+		const dialog = page.getByRole("dialog");
+		await expect.element(dialog).toBeVisible();
+		await dialog.getByLabelText("Handle or URL").fill("https://github.com/example");
+		dialog.getByRole("button", { name: "Add", exact: true }).element().click();
+
+		await expect.element(page.getByText("https://github.com/example")).toBeInTheDocument();
+
+		const saveBtn = screen.getByRole("button", { name: "Save", exact: true }).first();
+		await expect.element(saveBtn).toBeEnabled();
+		await userEvent.click(saveBtn);
+
+		await vi.waitFor(() => {
+			expect(mockUpdateSettings).toHaveBeenCalledWith(
+				expect.objectContaining({
+					identity: expect.objectContaining({
+						type: "Organization",
+						name: "My Blog",
+						links: expect.arrayContaining([
+							expect.objectContaining({ value: "https://x.com/example" }),
+							expect.objectContaining({ value: "https://github.com/example" }),
+						]),
+					}),
+				}),
+			);
+		});
+	});
+
+	it("warns without blocking save when publisher logo is smaller than 112x112", async () => {
+		mockFetchSettings.mockResolvedValue({
+			...defaultSettings,
+			identity: {
+				type: "Organization",
+				name: "My Blog",
+				logo: {
+					mediaId: "small-logo",
+					url: "/media/small-logo.png",
+					contentType: "image/png",
+					width: 64,
+					height: 64,
+				},
+				links: [],
+			},
+		});
+		const screen = await renderSeoSettings();
+
+		await expect
+			.element(screen.getByText(/smaller than 112×112 pixels/i))
+			.toBeInTheDocument();
+
+		await screen.getByLabelText("Publisher Name (optional)").fill("Updated Org");
+		const saveBtn = screen.getByRole("button", { name: "Save", exact: true }).first();
+		await expect.element(saveBtn).toBeEnabled();
+		await userEvent.click(saveBtn);
+
+		await vi.waitFor(() => {
+			expect(mockUpdateSettings).toHaveBeenCalledWith(
+				expect.objectContaining({
+					identity: expect.objectContaining({
+						name: "Updated Org",
+					}),
 				}),
 			);
 		});

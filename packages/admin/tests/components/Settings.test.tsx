@@ -80,15 +80,16 @@ describe("Settings", () => {
 			.toBeInTheDocument();
 	});
 
-	it("shows links to General, Social, and SEO sub-pages", async () => {
+	it("shows links to General, SEO, and Profile sub-pages", async () => {
 		const screen = await render(
 			<Wrapper>
 				<Settings />
 			</Wrapper>,
 		);
 		await expect.element(screen.getByText("General")).toBeInTheDocument();
-		await expect.element(screen.getByText("Social Links")).toBeInTheDocument();
 		await expect.element(screen.getByText("SEO")).toBeInTheDocument();
+		await expect.element(screen.getByText("Profile", { exact: true })).toBeInTheDocument();
+		expect(screen.getByText("Social Links", { exact: true }).query()).toBeNull();
 	});
 
 	it("shows links to API Tokens and Email sub-pages", async () => {

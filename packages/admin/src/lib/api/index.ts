@@ -154,6 +154,7 @@ export {
 	type SiteDomain,
 	fetchSettings,
 	updateSettings,
+	updateCurrentUserProfileLinks,
 	fetchSiteDomain,
 	changeSiteDomain,
 	createSignInHandover,
@@ -439,11 +440,7 @@ export {
 } from "./redirects.js";
 
 // Current user
-export {
-	type CurrentUser,
-	updateCurrentUserProfileLinks,
-	useCurrentUser,
-} from "./current-user.js";
+export { type CurrentUser, useCurrentUser } from "./current-user.js";
 
 // Relations (reference fields)
 export {

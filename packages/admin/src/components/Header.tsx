@@ -1,6 +1,6 @@
 import { Badge, Button, LinkButton, Popover } from "@cloudflare/kumo";
 import { useLingui } from "@lingui/react/macro";
-import { SignOut, Shield, Gear, ArrowSquareOut } from "@phosphor-icons/react";
+import { SignOut, Shield, Gear, ArrowSquareOut, User } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import * as React from "react";
 
@@ -100,6 +100,14 @@ export function Header({ staging = false }: { staging?: boolean }) {
 							</div>
 						</div>
 						<div className="grid gap-1">
+							<Link
+								to="/settings/profile"
+								onClick={() => setUserMenuOpen(false)}
+								className="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-kumo-tint"
+							>
+								<User className="h-4 w-4" />
+								{t`Profile`}
+							</Link>
 							<Link
 								to="/settings/security"
 								onClick={() => setUserMenuOpen(false)}

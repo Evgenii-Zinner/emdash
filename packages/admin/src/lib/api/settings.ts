@@ -304,3 +304,21 @@ export async function changeSiteDomain(domain: string): Promise<{ url: string }>
 	});
 	return parseApiResponse<{ url: string }>(response, i18n._(msg`Failed to change the domain`));
 }
+
+/**
+ * Update the signed-in user's public profile links.
+ */
+export async function updateCurrentUserProfileLinks(
+	profileLinks: ProfileLink[],
+): Promise<ProfileLink[]> {
+	const response = await apiFetch("/_emdash/api/auth/me", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ action: "setProfileLinks", profileLinks }),
+	});
+	const result = await parseApiResponse<{ profileLinks?: ProfileLink[] | null }>(
+		response,
+		i18n._(msg`Failed to update profile links`),
+	);
+	return result.profileLinks ?? [];
+}
