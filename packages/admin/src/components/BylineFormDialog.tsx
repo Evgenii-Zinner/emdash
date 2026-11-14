@@ -491,21 +491,6 @@ export function BylineFormDialog({
 								onChange={(mediaId) => setForm((prev) => ({ ...prev, avatarMediaId: mediaId }))}
 							/>
 							<DialogSection
-								title={t`Profile links`}
-								help={t`Social and external profiles for author identity and verification (rel="me").`}
-							>
-								{form.userId ? (
-									<p className="text-sm text-kumo-subtle">
-										{t`This byline is linked to a user account. Profile links are inherited from the user's Profile settings across all locales.`}
-									</p>
-								) : (
-									<ProfileLinksEditor
-										links={form.profileLinks}
-										onChange={(links) => setForm((prev) => ({ ...prev, profileLinks: links }))}
-									/>
-								)}
-							</DialogSection>
-							<DialogSection
 								title={t`Attribution`}
 								help={t`Link this byline to a user or mark it as a guest profile.`}
 							>
@@ -538,6 +523,21 @@ export function BylineFormDialog({
 										}))
 									}
 								/>
+							</DialogSection>
+							<DialogSection
+								title={t`Profile links`}
+								help={t`Social and external profiles for author identity and verification (rel="me").`}
+							>
+								{form.userId ? (
+									<p className="text-sm text-kumo-subtle">
+										{t`This byline is linked to a user account. Profile links are inherited from the user's Profile settings across all locales.`}
+									</p>
+								) : (
+									<ProfileLinksEditor
+										links={form.profileLinks}
+										onChange={(links) => setForm((prev) => ({ ...prev, profileLinks: links }))}
+									/>
+								)}
 							</DialogSection>
 
 							{customFieldDefs.length > 0 && (
