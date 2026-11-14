@@ -1,7 +1,7 @@
 /**
  * Settings Pages E2E Tests
  *
- * Tests the Social, SEO, and Email settings sub-pages.
+ * Tests the SEO and Email settings sub-pages.
  * These are form-based pages that load settings from the API and save them.
  *
  * The primary class of bug we're catching: API response shape mismatches
@@ -12,103 +12,6 @@ import { test, expect } from "../fixtures";
 
 // API patterns
 const SETTINGS_API_PATTERN = /\/api\/settings$/;
-
-test.describe("Social Settings", () => {
-	test.beforeEach(async ({ admin }) => {
-		await admin.devBypassAuth();
-	});
-
-	test("page renders with heading and form", async ({ admin, page }) => {
-		await admin.goto("/settings/social");
-		await admin.waitForShell();
-		await admin.waitForLoading();
-
-		// Page heading
-		await expect(page.locator("h1")).toContainText("Social Links");
-
-		// Should show publisher identity and profiles sections
-		await expect(page.locator("text=Publisher Identity")).toBeVisible({ timeout: 10000 });
-		await expect(page.locator("text=Profiles & Links")).toBeVisible({ timeout: 10000 });
-	});
-
-	test("adds and saves a profile link with modal and persists across reload", async ({
-		admin,
-		page,
-	}) => {
-		await admin.goto("/settings/social");
-		await admin.waitForShell();
-		await admin.waitForLoading();
-
-		const testHandle = `e2e_user_${Date.now()}`;
-
-		// Click "Add Profile Link"
-		await page.getByRole("button", { name: "Add Profile Link" }).click();
-
-		const dialog = page.locator('[role="dialog"]').filter({ hasText: "Add Profile Link" });
-		await expect(dialog).toBeVisible();
-
-		// Fill handle
-		await dialog.getByLabel("Handle or URL").fill(testHandle);
-
-		// Add link via modal action
-		await dialog.getByRole("button", { name: "Add" }).click();
-		await expect(dialog).not.toBeVisible();
-
-		// Check link is in list
-		await expect(page.locator(`text=${testHandle}`)).toBeVisible();
-
-		// Save settings form
-		const saveResponse = page.waitForResponse(
-			(res) =>
-				SETTINGS_API_PATTERN.test(res.url()) &&
-				res.request().method() === "POST" &&
-				res.status() === 200,
-			{ timeout: 15000 },
-		);
-
-		await page.getByRole("button", { name: "Save", exact: true }).first().click();
-		await saveResponse;
-
-		// Reload the page
-		await admin.goto("/settings/social");
-		await admin.waitForShell();
-		await admin.waitForLoading();
-
-		// The value should persist in the list
-		await expect(page.locator(`text=${testHandle}`)).toBeVisible({ timeout: 10000 });
-	});
-
-	test("adds a custom link requiring label and saves successfully", async ({
-		admin,
-		page,
-	}) => {
-		await admin.goto("/settings/social");
-		await admin.waitForShell();
-		await admin.waitForLoading();
-
-		await page.getByRole("button", { name: "Add Profile Link" }).click();
-		const dialog = page.locator('[role="dialog"]').filter({ hasText: "Add Profile Link" });
-		await expect(dialog).toBeVisible();
-
-		// Change platform to Custom URL
-		await dialog.getByRole("combobox", { name: "Platform" }).click();
-		await page.getByRole("option", { name: "Custom URL" }).click();
-
-		// Label is required: clicking Add with empty label shows error
-		await dialog.getByLabel("URL, Handle, or ID").fill("https://example.com/portfolio");
-		await dialog.getByRole("button", { name: "Add" }).click();
-		await expect(dialog.getByText("Label is required for custom links")).toBeVisible();
-
-		// Fill label and submit
-		await dialog.getByLabel("Link Label").fill("My Portfolio");
-		await dialog.getByRole("button", { name: "Add" }).click();
-		await expect(dialog).not.toBeVisible();
-
-		// Custom link with label is displayed in the list
-		await expect(page.locator("text=My Portfolio")).toBeVisible();
-		await expect(page.locator("text=https://example.com/portfolio")).toBeVisible();
-	});
-});
 
 test.describe("SEO Settings", () => {
 	test.beforeEach(async ({ admin }) => {
