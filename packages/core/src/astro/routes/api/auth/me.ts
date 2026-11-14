@@ -6,6 +6,7 @@
  */
 
 import type { APIRoute } from "astro";
+import { z } from "zod";
 
 export const prerender = false;
 
@@ -13,7 +14,8 @@ import { apiError, apiSuccess, handleError } from "#api/error.js";
 import { isParseError, parseBody } from "#api/parse.js";
 import { authMeActionBody } from "#api/schemas.js";
 import { UserRepository } from "#db/repositories/user.js";
-import { normalizeProfileLinks, validateProfileLinks } from "../../../../identity/links.js";
+import { normalizeProfileLinks } from "../../../../identity/links.js";
+import { profileLinkInputSchema } from "../../../../identity/schemas.js";
 import { invalidateBylineObjectCache } from "../../../../object-cache/index.js";
 
 export const GET: APIRoute = async ({ locals }) => {
@@ -90,12 +92,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
 		if (!Array.isArray(body.profileLinks)) {
 			return apiError("VALIDATION_ERROR", "profileLinks array is required", 400);
 		}
-		const validation = validateProfileLinks(body.profileLinks);
-		if (!validation.valid) {
-			return apiError("VALIDATION_ERROR", validation.error ?? "Invalid profile links", 400);
+		const parsedLinks = z.array(profileLinkInputSchema).max(50).safeParse(body.profileLinks);
+		if (!parsedLinks.success) {
+			return apiError(
+				"VALIDATION_ERROR",
+				parsedLinks.error.issues[0]?.message ?? "Invalid profile links",
+				400,
+			);
 		}
 		try {
-			const normalized = normalizeProfileLinks(body.profileLinks);
+			const normalized = normalizeProfileLinks(parsedLinks.data);
 			const userRepo = new UserRepository(emdash.db);
 			await userRepo.update(user.id, { profileLinks: normalized });
 			invalidateBylineObjectCache();
